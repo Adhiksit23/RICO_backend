@@ -295,21 +295,27 @@ export default function CalibrationPage() {
 
   useEffect(() => {
 
-    fetch("http://127.0.0.1:8000/api/calibrator/run")
+    fetch("https://outspoken-pandemic-surfer.ngrok-free.dev/api/calibration/run", {
+      headers: {"ngrok-skip-browser-warning": "true", },
+    })
       .then((res) => res.json())
       .then((data: SummaryData) => {
         setSummary(data);
       })
       .catch((err) => console.error(err));
 
-    fetch("http://127.0.0.1:8000/api/calibration/latest")
+    fetch("https://outspoken-pandemic-surfer.ngrok-free.dev/api/calibration/latest", {
+      headers: {"ngrok-skip-browser-warning": "true", },
+    })
       .then((res) => res.json())
       .then((data: Record<string, number>) => {
         setLatestParams(data);
       })
       .catch((err) => console.error(err));
 
-    fetch("http://127.0.0.1:8000/api/calibration/ranges")
+    fetch("https://outspoken-pandemic-surfer.ngrok-free.dev/api/calibration/ranges", {
+      headers: {"ngrok-skip-browser-warning": "true", },
+    })
       .then((res) => res.json())
       .then((data: Record<string, RangeData>) => {
         setRanges(data);
@@ -437,7 +443,7 @@ export default function CalibrationPage() {
             </div>
 
             <div className="text-white text-2xl font-bold mt-1">
-              {summary.samples_analyzed.toLocaleString()}
+              {summary && summary.samples_analyzed ? summary.samples_analyzed.toLocaleString(): ''}
             </div>
 
           </div>
