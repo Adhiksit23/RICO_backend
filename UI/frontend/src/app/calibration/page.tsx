@@ -500,7 +500,6 @@
 //   );
 // }
 
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -555,7 +554,7 @@ export default function CalibrationPage() {
   const [status, setStatus] =
     useState("");
 
-  // ---------------- FETCH APIs ----------------
+  // ---------------- FETCH ----------------
 
   useEffect(() => {
 
@@ -630,9 +629,25 @@ export default function CalibrationPage() {
   const normalizeKey = (
     key: string
   ): string => {
+
     return key
+      .trim()
       .toLowerCase()
+      .replaceAll("/", "_")
+      .replaceAll("-", "_")
       .replaceAll(" ", "_");
+
+  };
+
+  const getUnit = (
+    key: string
+  ): string => {
+
+    return (
+      parameterUnits[key.trim()] ||
+      ""
+    );
+
   };
 
   const handleChange = (
@@ -647,6 +662,8 @@ export default function CalibrationPage() {
 
   };
 
+  // ---------------- DYNAMIC NEEDLE ----------------
+
   const getNeedlePosition = (
     value: number,
     min: number,
@@ -655,13 +672,23 @@ export default function CalibrationPage() {
 
     if (max === min) return 50;
 
+    const padding =
+      (max - min) * 0.5;
+
+    const graphMin =
+      min - padding;
+
+    const graphMax =
+      max + padding;
+
     const percentage =
-      ((value - min) / (max - min)) *
+      ((value - graphMin) /
+        (graphMax - graphMin)) *
       100;
 
     return Math.max(
-      0,
-      Math.min(100, percentage)
+      5,
+      Math.min(95, percentage)
     );
   };
 
@@ -776,27 +803,33 @@ export default function CalibrationPage() {
       <div className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-5 py-3 mb-4 flex items-center gap-5 text-sm">
 
         <div className="flex items-center gap-2">
+
           <div className="w-4 h-4 rounded bg-yellow-500/30" />
 
           <span className="text-gray-400">
             Tolerance Band
           </span>
+
         </div>
 
         <div className="flex items-center gap-2">
+
           <div className="w-4 h-4 rounded bg-green-500/30" />
 
           <span className="text-gray-400">
-            Zero-Defect Range
+            Optimal Range
           </span>
+
         </div>
 
         <div className="flex items-center gap-2">
+
           <div className="w-[3px] h-5 rounded bg-cyan-400" />
 
           <span className="text-gray-400">
-            Current Value Indicator
+            Current Value
           </span>
+
         </div>
 
       </div>
@@ -805,7 +838,7 @@ export default function CalibrationPage() {
 
       <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl overflow-hidden">
 
-        {/* TABLE HEADER */}
+        {/* HEADER */}
 
         <div className="grid grid-cols-[2.3fr_1fr_1fr_0.7fr_2fr_0.7fr_0.7fr] px-4 py-3 border-b border-[#1F2937] text-[10px] uppercase tracking-[2px] text-gray-500">
 
@@ -856,6 +889,7 @@ export default function CalibrationPage() {
                 </div>
 
                 <div className="text-gray-500 text-[11px] mt-1">
+
                   Tol:{" "}
                   {value.min_range.toFixed(
                     2
@@ -864,7 +898,8 @@ export default function CalibrationPage() {
                   {value.max_range.toFixed(
                     2
                   )}{" "}
-                  {parameterUnits[key]}
+                  {getUnit(key)}
+
                 </div>
 
               </div>
@@ -874,7 +909,7 @@ export default function CalibrationPage() {
               <div className="text-cyan-400 font-semibold text-[16px]">
 
                 {currentValue.toFixed(2)}{" "}
-                {parameterUnits[key]}
+                {getUnit(key)}
 
               </div>
 
@@ -889,7 +924,7 @@ export default function CalibrationPage() {
                 {value.max_range.toFixed(
                   2
                 )}{" "}
-                {parameterUnits[key]}
+                {getUnit(key)}
 
               </div>
 
@@ -901,11 +936,11 @@ export default function CalibrationPage() {
                 {value.tolerance.toFixed(
                   2
                 )}{" "}
-                {parameterUnits[key]}
+                {getUnit(key)}
 
               </div>
 
-              {/* RANGE VISUALIZATION */}
+              {/* DYNAMIC RANGE VISUAL */}
 
               <div className="pr-4">
 
@@ -913,16 +948,31 @@ export default function CalibrationPage() {
 
                   {/* TOLERANCE */}
 
-                  <div className="absolute left-[8%] top-0 h-full w-[84%] bg-yellow-500/10" />
+                  <div
+                    className="absolute top-0 h-full bg-yellow-500/10"
+                    style={{
+                      left: "0%",
+                      width: "100%",
+                    }}
+                  />
 
-                  {/* GREEN RANGE */}
-
-                  <div className="absolute left-[30%] top-0 h-full w-[40%] bg-green-500/20" />
-
-                  {/* NEEDLE */}
+                  {/* OPTIMAL RANGE */}
 
                   <div
-                    className="absolute top-0 h-full w-[3px] bg-cyan-400 shadow-[0_0_10px_#22d3ee]"
+                    className="absolute top-0 h-full bg-green-500/25 transition-all duration-500"
+                    style={{
+                      left: `${Math.max(
+                        0,
+                        needlePosition - 15
+                      )}%`,
+                      width: "30%",
+                    }}
+                  />
+
+                  {/* CURRENT NEEDLE */}
+
+                  <div
+                    className="absolute top-0 h-full w-[3px] bg-cyan-400 shadow-[0_0_10px_#22d3ee] transition-all duration-500"
                     style={{
                       left: `${needlePosition}%`,
                     }}
@@ -935,9 +985,11 @@ export default function CalibrationPage() {
               {/* SAMPLES */}
 
               <div className="text-gray-400 text-sm">
+
                 {Math.floor(
                   2000 + index * 120
                 ).toLocaleString()}
+
               </div>
 
               {/* CPK */}
@@ -962,7 +1014,7 @@ export default function CalibrationPage() {
 
       </div>
 
-      {/* UPDATE SECTION */}
+      {/* UPDATE PARAMETERS */}
 
       <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl mt-6 p-5">
 
@@ -997,7 +1049,9 @@ export default function CalibrationPage() {
                   <input
                     type="number"
                     step="0.01"
-                    value={currentValue}
+                    value={currentValue.toFixed(
+                      2
+                    )}
                     onChange={(e) =>
                       handleChange(
                         normalizedKey,
@@ -1008,7 +1062,9 @@ export default function CalibrationPage() {
                   />
 
                   <span className="absolute right-4 top-3 text-gray-500 text-sm">
-                    {parameterUnits[key]}
+
+                    {getUnit(key)}
+
                   </span>
 
                 </div>
