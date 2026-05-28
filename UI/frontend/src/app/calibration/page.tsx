@@ -575,7 +575,7 @@ export default function CalibrationPage() {
       {}
     );
 
-  // latest = currently applied machine calibration
+  // CURRENT MACHINE APPLIED VALUES
   const [latestParams, setLatestParams] =
     useState<Record<string, string>>(
       {}
@@ -583,6 +583,13 @@ export default function CalibrationPage() {
 
   const [status, setStatus] =
     useState("");
+
+  // MACHINE + DIE
+  const [selectedMachine, setSelectedMachine] =
+    useState("DC-01");
+
+  const [selectedDie, setSelectedDie] =
+    useState("All Dies");
 
   // ---------------- FETCH ----------------
 
@@ -602,7 +609,8 @@ export default function CalibrationPage() {
         setSummary(data)
       );
 
-    // CURRENT APPLIED MACHINE VALUES
+    // CURRENT APPLIED VALUES
+
     fetch(
       `${base_api}/api/calibration/latest`,
       {
@@ -637,6 +645,7 @@ export default function CalibrationPage() {
       );
 
     // RECOMMENDED RANGES
+
     fetch(
       `${base_api}/api/calibration/ranges`,
       {
@@ -661,6 +670,21 @@ export default function CalibrationPage() {
       );
 
   }, []);
+
+  // ---------------- DROPDOWNS ----------------
+
+  const machines = [
+    "DC-01",
+    "DC-02",
+    "DC-03",
+  ];
+
+  const dies = [
+    "All Dies",
+    "Die 1",
+    "Die 2",
+    "Die 3",
+  ];
 
   // ---------------- HELPERS ----------------
 
@@ -693,7 +717,7 @@ export default function CalibrationPage() {
 
   };
 
-  // ---------------- RANGE VISUALIZATION ----------------
+  // ---------------- DYNAMIC VISUALIZATION ----------------
 
   const getPercentage = (
     value: number,
@@ -844,11 +868,119 @@ export default function CalibrationPage() {
 
       </div>
 
-      {/* TABLE */}
+      {/* MACHINE + DIE */}
+
+      <div className="flex justify-end gap-4 mb-5">
+
+        {/* MACHINE */}
+
+        <div>
+
+          <div className="text-xs text-gray-500 mb-1 uppercase tracking-[2px]">
+            Machine
+          </div>
+
+          <select
+            value={selectedMachine}
+            onChange={(e) =>
+              setSelectedMachine(
+                e.target.value
+              )
+            }
+            className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-2 text-white outline-none"
+          >
+            {machines.map((machine) => (
+
+              <option
+                key={machine}
+                value={machine}
+              >
+                {machine}
+              </option>
+
+            ))}
+          </select>
+
+        </div>
+
+        {/* DIE */}
+
+        <div>
+
+          <div className="text-xs text-gray-500 mb-1 uppercase tracking-[2px]">
+            Die
+          </div>
+
+          <select
+            value={selectedDie}
+            onChange={(e) =>
+              setSelectedDie(
+                e.target.value
+              )
+            }
+            className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-2 text-white outline-none"
+          >
+            {dies.map((die) => (
+
+              <option
+                key={die}
+                value={die}
+              >
+                {die}
+              </option>
+
+            ))}
+          </select>
+
+        </div>
+
+      </div>
+
+      {/* LEGEND */}
+
+      <div className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-5 py-3 mb-4 flex items-center gap-5 text-sm">
+
+        <div className="flex items-center gap-2">
+
+          <div className="w-4 h-4 rounded bg-yellow-500/30" />
+
+          <span className="text-gray-400">
+            Tolerance Band
+          </span>
+
+        </div>
+
+        <div className="flex items-center gap-2">
+
+          <div className="w-4 h-4 rounded bg-green-500/30" />
+
+          <span className="text-gray-400">
+            Zero-Defect Range
+          </span>
+
+        </div>
+
+        <div className="flex items-center gap-2">
+
+          <div className="w-[3px] h-5 rounded bg-cyan-400" />
+
+          <span className="text-gray-400">
+            Current Value Indicator
+          </span>
+
+        </div>
+
+      </div>
+
+      {/* CURRENT APPLIED CALIBRATION */}
+
+      <div className="mb-3 text-xl font-semibold">
+        Current Applied Calibration
+      </div>
 
       <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl overflow-hidden">
 
-        {/* HEADER */}
+        {/* TABLE HEADER */}
 
         <div className="grid grid-cols-[2.3fr_1fr_1fr_0.7fr_2fr_0.7fr_0.7fr] px-4 py-3 border-b border-[#1F2937] text-[10px] uppercase tracking-[2px] text-gray-500">
 
@@ -872,7 +1004,6 @@ export default function CalibrationPage() {
           const unit =
             getUnit(key);
 
-          // CURRENT MACHINE VALUE
           const currentValue =
             latestParams[
               normalizedKey
@@ -936,7 +1067,7 @@ export default function CalibrationPage() {
 
               </div>
 
-              {/* CURRENT APPLIED */}
+              {/* CURRENT VALUE */}
 
               <div className="text-cyan-400 font-semibold text-[16px]">
 
@@ -947,7 +1078,7 @@ export default function CalibrationPage() {
 
               </div>
 
-              {/* RECOMMENDED RANGE */}
+              {/* RANGE */}
 
               <div className="text-green-400 text-[16px]">
 
@@ -974,7 +1105,7 @@ export default function CalibrationPage() {
 
               </div>
 
-              {/* RANGE VISUAL */}
+              {/* VISUALIZATION */}
 
               <div className="pr-4">
 
@@ -994,7 +1125,7 @@ export default function CalibrationPage() {
                     }}
                   />
 
-                  {/* CURRENT NEEDLE */}
+                  {/* CURRENT VALUE */}
 
                   <div
                     className="absolute top-0 h-full w-[3px] bg-cyan-400 shadow-[0_0_12px_#22d3ee] transition-all duration-500"
@@ -1039,12 +1170,12 @@ export default function CalibrationPage() {
 
       </div>
 
-      {/* UPDATE SECTION */}
+      {/* NEWLY CORRECTED RECIPE */}
 
       <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl mt-6 p-5">
 
         <h2 className="text-xl font-semibold mb-5">
-          Recommended Calibration Parameters
+          Newly Corrected Recipe
         </h2>
 
         <div className="grid grid-cols-3 gap-4">
