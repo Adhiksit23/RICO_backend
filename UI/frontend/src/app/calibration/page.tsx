@@ -826,7 +826,8 @@
 //   );
 // }
 
- "use client";
+
+"use client";
 
 import {
   useEffect,
@@ -835,8 +836,7 @@ import {
   useCallback,
 } from "react";
 
-const base_api =
-  "https://outspoken-pandemic-surfer.ngrok-free.dev";
+const base_api = "https://outspoken-pandemic-surfer.ngrok-free.dev";
 
 type SummaryData = {
   samples_analyzed: number;
@@ -851,694 +851,254 @@ type RangeData = {
   max_range: number;
 };
 
-const getUnit = (
-  key: string
-): string => {
-
-  const lower =
-    key.toLowerCase();
-
-  if (
-    lower.includes("mm")
-  )
-    return "mm";
-
-  if (
-    lower.includes("bar") ||
-    lower.includes("pressure")
-  )
-    return "bar";
-
-  if (
-    lower.includes("%")
-  )
-    return "%";
-
-  if (
-    lower.includes("sec") ||
-    lower.includes("time")
-  )
-    return "s";
-
-  if (
-    lower.includes("°c") ||
-    lower.includes("temperature")
-  )
-    return "°C";
-
-  if (
-    lower.includes("l/min")
-  )
-    return "L/min";
-
-  if (
-    lower.includes("m/s") ||
-    lower.includes("speed")
-  )
-    return "m/s";
-
-  if (
-    lower.includes("(t)")
-  )
-    return "T";
-
+const getUnit = (key: string): string => {
+  const lower = key.toLowerCase();
+  if (lower.includes("mm")) return "mm";
+  if (lower.includes("bar") || lower.includes("pressure")) return "bar";
+  if (lower.includes("%")) return "%";
+  if (lower.includes("sec") || lower.includes("time")) return "s";
+  if (lower.includes("°c") || lower.includes("temperature")) return "°C";
+  if (lower.includes("l/min")) return "L/min";
+  if (lower.includes("m/s") || lower.includes("speed")) return "m/s";
+  if (lower.includes("(t)")) return "T";
   return "";
 };
 
 export default function CalibrationPage() {
+  const [summary, setSummary] = useState<SummaryData>({
+    samples_analyzed: 52296,
+    avg_cpk: 1.75,
+    excellent_parameters: 14,
+  });
 
-  const [summary, setSummary] =
-    useState<SummaryData>({
-      samples_analyzed:
-        52296,
-      avg_cpk: 1.75,
-      excellent_parameters:
-        14,
-    });
+  const [ranges, setRanges] = useState<Record<string, RangeData>>({});
+  const [latestParams, setLatestParams] = useState<Record<string, string>>({});
+  const [keyMap, setKeyMap] = useState<Record<string, string>>({});
+  const [status, setStatus] = useState("");
+  const [selectedMachine, setSelectedMachine] = useState("DC-01");
+  const [selectedDie, setSelectedDie] = useState("All Dies");
 
-  const [ranges, setRanges] =
-    useState<
-      Record<
-        string,
-        RangeData
-      >
-    >({});
+  // ---------------- HELPERS (Fixed: Kept at top level) ----------------
 
-  // NORMALIZED FRONTEND VALUES
-
-  const [
-    latestParams,
-    setLatestParams,
-  ] = useState<
-    Record<string, string>
-  >({});
-
-  // NORMALIZED -> BACKEND RAW KEY MAP
-
-  const [keyMap, setKeyMap] =
-    useState<
-      Record<string, string>
-    >({});
-
-  const [status, setStatus] =
-    useState("");
-
-  // MACHINE + DIE
-
-  const [
-    selectedMachine,
-    setSelectedMachine,
-  ] = useState("DC-01");
-
-  const [
-    selectedDie,
-    setSelectedDie,
-  ] = useState(
-    "All Dies"
-  );
-
-  // ---------------- HELPERS ----------------
-
-  const normalizeKey = (
-    key: string
-  ): string => {
-
+  const normalizeKey = useCallback((key: string): string => {
     return key
       .trim()
       .toLowerCase()
       .replaceAll("/", "_")
       .replaceAll("-", "_")
       .replaceAll(" ", "_");
-
-  };
+  }, []);
 
   // ---------------- FETCH LATEST ----------------
 
-  const fetchLatest =
-    useCallback(
-      async () => {
+  const fetchLatest = useCallback(async () => {
+    try {
+      const res = await fetch(`${base_api}/api/calibration/latest`, {
+        headers: {
+          "ngrok-skip-browser-warning": "true",
+        },
+      });
 
-        try {
+      const data = await res.json();
+      const formatted: Record<string, string> = {};
+      const mapping: Record<string, string> = {};
 
-          const res =
-            await fetch(
-              `${base_api}/api/calibration/latest`,
-              {
-                headers: {
-                  "ngrok-skip-browser-warning":
-                    "true",
-                },
-              }
-            );
+      Object.entries(data).forEach(([k, v]) => {
+        const normalized = normalizeKey(k);
+        formatted[normalized] = Number(v).toFixed(2);
+        mapping[normalized] = k;
+      });
 
-          const data =
-            await res.json();
-
-          const formatted:
-            Record<
-              string,
-              string
-            > = {};
-
-          const mapping:
-            Record<
-              string,
-              string
-            > = {};
-
-          // NORMALIZE + MAP BACKEND KEYS
-
-          Object.entries(
-            data
-          ).forEach(
-            ([k, v]) => {
-
-              const normalized =
-                normalizeKey(
-                  k
-                );
-
-              formatted[
-                normalized
-              ] =
-                Number(
-                  v
-                ).toFixed(2);
-
-              mapping[
-                normalized
-              ] = k;
-
-            }
-          );
-
-          setLatestParams(
-            formatted
-          );
-
-          setKeyMap(
-            mapping
-          );
-
-        } catch (err) {
-
-          console.error(
-            "Failed to fetch latest calibration",
-            err
-          );
-
-        }
-      },
-      []
-    );
+      setLatestParams(formatted);
+      setKeyMap(mapping);
+    } catch (err) {
+      console.error("Failed to fetch latest calibration", err);
+    }
+  }, [normalizeKey]);
 
   // ---------------- INITIAL FETCH ----------------
 
   useEffect(() => {
-
     // SUMMARY
-
-    fetch(
-      `${base_api}/api/calibrator/run`,
-      {
-        headers: {
-          "ngrok-skip-browser-warning":
-            "true",
-        },
-      }
-    )
-      .then((res) =>
-        res.json()
-      )
-      .then(
-        (
-          data: SummaryData
-        ) =>
-          setSummary(
-            data
-          )
-      )
-      .catch(
-        console.error
-      );
+    fetch(`${base_api}/api/calibrator/run`, {
+      headers: { "ngrok-skip-browser-warning": "true" },
+    })
+      .then((res) => res.json())
+      .then((data: SummaryData) => setSummary(data))
+      .catch(console.error);
 
     // CURRENT VALUES
-
     fetchLatest();
 
     // RANGES
-
-    fetch(
-      `${base_api}/api/calibration/ranges`,
-      {
-        headers: {
-          "ngrok-skip-browser-warning":
-            "true",
-        },
-      }
-    )
-      .then((res) =>
-        res.json()
-      )
-      .then(
-        (
-          data: Record<
-            string,
-            RangeData
-          >
-        ) => {
-
-          setRanges(
-            data
-          );
-
-        }
-      )
-      .catch(
-        console.error
-      );
-
+    fetch(`${base_api}/api/calibration/ranges`, {
+      headers: { "ngrok-skip-browser-warning": "true" },
+    })
+      .then((res) => res.json())
+      .then((data: Record<string, RangeData>) => setRanges(data))
+      .catch(console.error);
   }, [fetchLatest]);
 
   // ---------------- TAB VISIBILITY REFRESH ----------------
 
   useEffect(() => {
-
-    const handleVisibility =
-      async () => {
-
-        if (
-          document.visibilityState ===
-          "visible"
-        ) {
-
-          await fetchLatest();
-
-        }
-      };
-
-    document.addEventListener(
-      "visibilitychange",
-      handleVisibility
-    );
-
-    return () => {
-
-      document.removeEventListener(
-        "visibilitychange",
-        handleVisibility
-      );
-
+    const handleVisibility = async () => {
+      if (document.visibilityState === "visible") {
+        await fetchLatest();
+      }
     };
 
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [fetchLatest]);
 
-  // ---------------- DROPDOWNS ----------------
+  // ---------------- DROPDOWNS & MEMO ----------------
 
-  const machines = [
-    "DC-01",
-    "DC-02",
-    "DC-03",
-  ];
+  const machines = ["DC-01", "DC-02", "DC-03"];
+  const dies = ["All Dies", "Die 1", "Die 2", "Die 3"];
+  const rows = useMemo(() => Object.entries(ranges), [ranges]);
 
-  const dies = [
-    "All Dies",
-    "Die 1",
-    "Die 2",
-    "Die 3",
-  ];
-
-  // ---------------- ROWS ----------------
-
-  const rows =
-    useMemo(() => {
-
-      return Object.entries(
-        ranges
-      );
-
-    }, [ranges]);
-
-  // ---------------- INPUT CHANGE ----------------
-
-  const handleChange = (
-    key: string,
-    value: string
-  ) => {
-
-    setLatestParams(
-      (prev) => ({
-        ...prev,
-        [key]: value,
-      })
-    );
-
+  const handleChange = (key: string, value: string) => {
+    setLatestParams((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
   };
 
-  // ---------------- VISUALIZATION ----------------
-
-  const getPercentage = (
-    value: number,
-    min: number,
-    max: number
-  ): number => {
-
-    if (
-      max === min ||
-      isNaN(value)
-    )
-      return 50;
-
-    const spread =
-      Math.abs(
-        max - min
-      ) || 1;
-
-    const graphMin =
-      min -
-      spread * 0.5;
-
-    const graphMax =
-      max +
-      spread * 0.5;
-
-    const percentage =
-      ((value -
-        graphMin) /
-        (graphMax -
-          graphMin)) *
-      100;
-
-    return Math.max(
-      0,
-      Math.min(
-        100,
-        percentage
-      )
-    );
+  const getPercentage = (value: number, min: number, max: number): number => {
+    if (max === min || isNaN(value)) return 50;
+    const spread = Math.abs(max - min) || 1;
+    const graphMin = min - spread * 0.5;
+    const graphMax = max + spread * 0.5;
+    const percentage = ((value - graphMin) / (graphMax - graphMin)) * 100;
+    return Math.max(0, Math.min(100, percentage));
   };
 
   // ---------------- APPLY ----------------
 
-  const applyCalibration =
-    async () => {
+  const applyCalibration = async () => {
+    try {
+      const payload: Record<string, number> = {};
 
-      try {
+      rows.forEach(([key, value]) => {
+        const normalizedKey = normalizeKey(key);
+        const backendKey = keyMap[normalizedKey] || key;
 
-        const payload:
-          Record<
-            string,
-            number
-          > = {};
+        const finalValue =
+          latestParams[normalizedKey] !== undefined
+            ? Number(latestParams[normalizedKey])
+            : value.baseline;
 
-        // ALWAYS SEND COMPLETE PAYLOAD
+        payload[backendKey] = finalValue;
+      });
 
-        rows.forEach(
-          ([key, value]) => {
+      const res = await fetch(`${base_api}/api/calibration/apply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-            const normalizedKey =
-              normalizeKey(
-                key
-              );
+      const data = await res.json();
+      setStatus(data.message || "Calibration Applied Successfully");
 
-            const backendKey =
-              keyMap[
-                normalizedKey
-              ] || key;
-
-            const finalValue =
-              latestParams[
-                normalizedKey
-              ] !==
-              undefined
-                ? Number(
-                    latestParams[
-                      normalizedKey
-                    ]
-                  )
-                : value.baseline;
-
-            payload[
-              backendKey
-            ] = finalValue;
-
-          }
-        );
-
-        const res =
-          await fetch(
-            `${base_api}/api/calibration/apply`,
-            {
-              method:
-                "POST",
-
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-
-              body: JSON.stringify(
-                payload
-              ),
-            }
-          );
-
-        const data =
-          await res.json();
-
-        setStatus(
-          data.message ||
-            "Calibration Applied Successfully"
-        );
-
-        // REFRESH FROM DB
-
-        await fetchLatest();
-
-      } catch {
-
-        setStatus(
-          "Failed to apply calibration"
-        );
-
-      }
-    };
+      await fetchLatest();
+    } catch {
+      setStatus("Failed to apply calibration");
+    }
+  };
 
   return (
-
     <div className="bg-[#07111F] min-h-screen text-white px-5 py-4">
-
       {/* HEADER */}
-
       <div className="flex justify-between items-start mb-5">
-
         <div>
-
-          <h1 className="text-[34px] font-bold leading-none">
-            Machine Calibration
-          </h1>
-
+          <h1 className="text-[34px] font-bold leading-none">Machine Calibration</h1>
           <p className="text-gray-500 mt-2 text-sm">
             Zero-defect operating windows derived from historical production data
           </p>
-
         </div>
 
         {/* SUMMARY */}
-
         <div className="flex gap-3">
-
           <div className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-3 min-w-[125px]">
-
-            <div className="text-[10px] uppercase tracking-[2px] text-gray-500">
-              Samples Analyzed
-            </div>
-
+            <div className="text-[10px] uppercase tracking-[2px] text-gray-500">Samples Analyzed</div>
             <div className="text-white text-2xl font-bold mt-1">
               {summary.samples_analyzed.toLocaleString()}
             </div>
-
           </div>
 
           <div className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-3 min-w-[100px]">
-
-            <div className="text-[10px] uppercase tracking-[2px] text-gray-500">
-              Avg CPK
-            </div>
-
-            <div className="text-cyan-400 text-2xl font-bold mt-1">
-              {summary.avg_cpk.toFixed(
-                2
-              )}
-            </div>
-
+            <div className="text-[10px] uppercase tracking-[2px] text-gray-500">Avg CPK</div>
+            <div className="text-cyan-400 text-2xl font-bold mt-1">{summary.avg_cpk.toFixed(2)}</div>
           </div>
 
           <div className="bg-[#121B2B] border border-green-500/20 rounded-lg px-4 py-3 min-w-[110px]">
-
-            <div className="text-[10px] uppercase tracking-[2px] text-gray-500">
-              Excellent
-            </div>
-
+            <div className="text-[10px] uppercase tracking-[2px] text-gray-500">Excellent</div>
             <div className="text-green-400 text-2xl font-bold mt-1">
-              {
-                summary.excellent_parameters
-              }{" "}
-              / 21
+              {summary.excellent_parameters} / 21
             </div>
-
           </div>
-
         </div>
-
       </div>
 
       {/* MACHINE + DIE */}
-
       <div className="flex justify-end gap-4 mb-5">
-
-        {/* MACHINE */}
-
         <div>
-
-          <div className="text-xs text-gray-500 mb-1 uppercase tracking-[2px]">
-            Machine
-          </div>
-
+          <div className="text-xs text-gray-500 mb-1 uppercase tracking-[2px]">Machine</div>
           <select
-            value={
-              selectedMachine
-            }
-            onChange={(
-              e
-            ) =>
-              setSelectedMachine(
-                e.target
-                  .value
-              )
-            }
+            value={selectedMachine}
+            onChange={(e) => setSelectedMachine(e.target.value)}
             className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-2 text-white outline-none"
           >
-            {machines.map(
-              (
-                machine
-              ) => (
-
-                <option
-                  key={
-                    machine
-                  }
-                  value={
-                    machine
-                  }
-                >
-                  {
-                    machine
-                  }
-                </option>
-
-              )
-            )}
+            {machines.map((machine) => (
+              <option key={machine} value={machine}>
+                {machine}
+              </option>
+            ))}
           </select>
-
         </div>
-
-        {/* DIE */}
 
         <div>
-
-          <div className="text-xs text-gray-500 mb-1 uppercase tracking-[2px]">
-            Die
-          </div>
-
+          <div className="text-xs text-gray-500 mb-1 uppercase tracking-[2px]">Die</div>
           <select
-            value={
-              selectedDie
-            }
-            onChange={(
-              e
-            ) =>
-              setSelectedDie(
-                e.target
-                  .value
-              )
-            }
+            value={selectedDie}
+            onChange={(e) => setSelectedDie(e.target.value)}
             className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-2 text-white outline-none"
           >
-            {dies.map(
-              (
-                die
-              ) => (
-
-                <option
-                  key={
-                    die
-                  }
-                  value={
-                    die
-                  }
-                >
-                  {die}
-                </option>
-
-              )
-            )}
+            {dies.map((die) => (
+              <option key={die} value={die}>
+                {die}
+              </option>
+            ))}
           </select>
-
         </div>
-
       </div>
 
       {/* LEGEND */}
-
       <div className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-5 py-3 mb-4 flex items-center gap-5 text-sm">
-
         <div className="flex items-center gap-2">
-
           <div className="w-4 h-4 rounded bg-yellow-500/30" />
-
-          <span className="text-gray-400">
-            Tolerance Band
-          </span>
-
+          <span className="text-gray-400">Tolerance Band</span>
         </div>
-
         <div className="flex items-center gap-2">
-
           <div className="w-4 h-4 rounded bg-green-500/30" />
-
-          <span className="text-gray-400">
-            Zero-Defect Range
-          </span>
-
+          <span className="text-gray-400">Zero-Defect Range</span>
         </div>
-
         <div className="flex items-center gap-2">
-
           <div className="w-[3px] h-5 rounded bg-cyan-400" />
-
-          <span className="text-gray-400">
-            Current Value Indicator
-          </span>
-
+          <span className="text-gray-400">Current Value Indicator</span>
         </div>
-
       </div>
 
-      {/* CURRENT APPLIED */}
-
-      <div className="mb-3 text-xl font-semibold">
-        Current Applied Calibration
-      </div>
+      <div className="mb-3 text-xl font-semibold">Current Applied Calibration</div>
 
       {/* TABLE */}
-
       <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl overflow-hidden">
-
-        {/* HEADER */}
-
         <div className="grid grid-cols-[2.3fr_1fr_1fr_0.7fr_2fr_0.7fr_0.7fr] px-4 py-3 border-b border-[#1F2937] text-[10px] uppercase tracking-[2px] text-gray-500">
-
           <div>Parameter</div>
           <div>Current Applied</div>
           <div>Optimal Range</div>
@@ -1546,388 +1106,159 @@ export default function CalibrationPage() {
           <div>Range Visualization</div>
           <div>Samples</div>
           <div>CPK</div>
-
         </div>
 
-        {/* ROWS */}
+        {rows.map(([key, value], index) => {
+          const normalizedKey = normalizeKey(key);
+          const unit = getUnit(key);
 
-        {rows.map(
-          (
-            [
-              key,
-              value,
-            ],
-            index
-          ) => {
+          const currentValue =
+            latestParams[normalizedKey] !== undefined
+              ? Number(latestParams[normalizedKey])
+              : value.baseline;
 
-            const normalizedKey =
-              normalizeKey(
-                key
-              );
+          const minPercent = getPercentage(value.min_range, value.min_range, value.max_range);
+          const maxPercent = getPercentage(value.max_range, value.min_range, value.max_range);
+          const needlePosition = getPercentage(currentValue, value.min_range, value.max_range);
 
-            const unit =
-              getUnit(
-                key
-              );
-
-            const currentValue =
-              latestParams[
-                normalizedKey
-              ] !==
-              undefined
-                ? Number(
-                    latestParams[
-                      normalizedKey
-                    ]
-                  )
-                : value.baseline;
-
-            const minPercent =
-              getPercentage(
-                value.min_range,
-                value.min_range,
-                value.max_range
-              );
-
-            const maxPercent =
-              getPercentage(
-                value.max_range,
-                value.min_range,
-                value.max_range
-              );
-
-            const needlePosition =
-              getPercentage(
-                currentValue,
-                value.min_range,
-                value.max_range
-              );
-
-            return (
-
-              <div
-                key={
-                  index
-                }
-                className="grid grid-cols-[2.3fr_1fr_1fr_0.7fr_2fr_0.7fr_0.7fr] px-4 py-4 border-b border-[#182232] items-center hover:bg-[#0D1625] transition-all"
-              >
-
-                {/* PARAMETER */}
-
-                <div>
-
-                  <div className="text-white text-[16px] font-semibold">
-                    {key}
-                  </div>
-
-                  <div className="text-gray-500 text-[11px] mt-1">
-
-                    Tol:{" "}
-                    {value.min_range.toFixed(
-                      2
-                    )}{" "}
-                    -{" "}
-                    {value.max_range.toFixed(
-                      2
-                    )}{" "}
-                    {
-                      unit
-                    }
-
-                  </div>
-
+          return (
+            <div
+              key={index}
+              className="grid grid-cols-[2.3fr_1fr_1fr_0.7fr_2fr_0.7fr_0.7fr] px-4 py-4 border-b border-[#182232] items-center hover:bg-[#0D1625] transition-all"
+            >
+              <div>
+                <div className="text-white text-[16px] font-semibold">{key}</div>
+                <div className="text-gray-500 text-[11px] mt-1">
+                  Tol: {value.min_range.toFixed(2)} - {value.max_range.toFixed(2)} {unit}
                 </div>
-
-                {/* CURRENT VALUE */}
-
-                <div className="text-cyan-400 font-semibold text-[16px]">
-
-                  {currentValue.toFixed(
-                    2
-                  )}{" "}
-                  {unit}
-
-                </div>
-
-                {/* RANGE */}
-
-                <div className="text-green-400 text-[16px]">
-
-                  {value.min_range.toFixed(
-                    2
-                  )}{" "}
-                  -{" "}
-                  {value.max_range.toFixed(
-                    2
-                  )}{" "}
-                  {unit}
-
-                </div>
-
-                {/* STD DEV */}
-
-                <div className="text-gray-400 text-sm">
-
-                  ±
-                  {value.tolerance.toFixed(
-                    2
-                  )}{" "}
-                  {unit}
-
-                </div>
-
-                {/* VISUALIZATION */}
-
-                <div className="pr-4">
-
-                  <div className="relative h-8 rounded-full bg-[#0B1320] border border-[#1F2937] overflow-hidden">
-
-                    {/* TOLERANCE */}
-
-                    <div className="absolute top-0 h-full bg-yellow-500/10 left-0 w-full" />
-
-                    {/* GREEN RANGE */}
-
-                    <div
-                      className="absolute top-0 h-full bg-green-500/25 transition-all duration-500"
-                      style={{
-                        left: `${minPercent}%`,
-                        width: `${
-                          maxPercent -
-                          minPercent
-                        }%`,
-                      }}
-                    />
-
-                    {/* NEEDLE */}
-
-                    <div
-                      className="absolute top-0 h-full w-[3px] bg-cyan-400 shadow-[0_0_12px_#22d3ee] transition-all duration-500"
-                      style={{
-                        left: `${needlePosition}%`,
-                      }}
-                    />
-
-                  </div>
-
-                </div>
-
-                {/* SAMPLES */}
-
-                <div className="text-gray-400 text-sm">
-
-                  {Math.floor(
-                    2000 +
-                      index *
-                        120
-                  ).toLocaleString()}
-
-                </div>
-
-                {/* CPK */}
-
-                <div>
-
-                  <div className="bg-green-500/15 text-green-400 text-xs px-2 py-1 rounded-md text-center font-semibold">
-
-                    {(
-                      1.35 +
-                      index *
-                        0.09
-                    ).toFixed(
-                      2
-                    )}
-
-                  </div>
-
-                </div>
-
               </div>
 
-            );
-          }
-        )}
+              <div className="text-cyan-400 font-semibold text-[16px]">
+                {currentValue.toFixed(2)} {unit}
+              </div>
 
+              <div className="text-green-400 text-[16px]">
+                {value.min_range.toFixed(2)} - {value.max_range.toFixed(2)} {unit}
+              </div>
+
+              <div className="text-gray-400 text-sm">
+                ±{value.tolerance.toFixed(2)} {unit}
+              </div>
+
+              <div className="pr-4">
+                <div className="relative h-8 rounded-full bg-[#0B1320] border border-[#1F2937] overflow-hidden">
+                  <div className="absolute top-0 h-full bg-yellow-500/10 left-0 w-full" />
+                  <div
+                    className="absolute top-0 h-full bg-green-500/25 transition-all duration-500"
+                    style={{
+                      left: `${minPercent}%`,
+                      width: `${maxPercent - minPercent}%`,
+                    }}
+                  />
+                  <div
+                    className="absolute top-0 h-full w-[3px] bg-cyan-400 shadow-[0_0_12px_#22d3ee] transition-all duration-500"
+                    style={{
+                      left: `${needlePosition}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="text-gray-400 text-sm">
+                {Math.floor(2000 + index * 120).toLocaleString()}
+              </div>
+
+              <div>
+                <div className="bg-green-500/15 text-green-400 text-xs px-2 py-1 rounded-md text-center font-semibold">
+                  {(1.35 + index * 0.09).toFixed(2)}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* NEWLY CORRECTED RECIPE */}
-
       <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl mt-6 p-5">
-
-        <h2 className="text-xl font-semibold mb-5">
-          Newly Corrected Recipe
-        </h2>
+        <h2 className="text-xl font-semibold mb-5">Newly Corrected Recipe</h2>
 
         <div className="grid grid-cols-3 gap-4">
+          {rows.map(([key, value], index) => {
+            const normalizedKey = normalizeKey(key);
+            const unit = getUnit(key);
 
-          {rows.map(
-            (
-              [
-                key,
-                value,
-              ],
-              index
-            ) => {
+            const inputValue =
+              latestParams[normalizedKey] !== undefined
+                ? latestParams[normalizedKey]
+                : value.baseline.toFixed(2);
 
-              const normalizeKey = useCallback((key: string): string => {
-  return key
-    .trim()
-    .toLowerCase()
-    .replaceAll("/", "_")
-    .replaceAll("-", "_")
-    .replaceAll(" ", "_");
-}, []);
-
-              const unit =
-                getUnit(
-                  key
-                );
-
-              const inputValue =
-                latestParams[
-                  normalizedKey
-                ] !==
-                undefined
-                  ? latestParams[
-                      normalizedKey
-                    ]
-                  : value.baseline.toFixed(
-                      2
-                    );
-
-              return (
-
-                <div
-                  key={
-                    index
-                  }
-                  className="bg-[#0B1320] border border-[#1F2937] rounded-xl p-4"
-                >
-
-                  {/* PARAMETER */}
-
-                  <div className="text-white text-sm font-semibold mb-3">
-
-                    {key}
-
-                  </div>
-
-                  {/* LOWER + UPPER */}
-
-                  <div className="flex justify-between text-xs mb-3">
-
-                    <div>
-
-                      <div className="text-gray-500">
-                        Lower
-                      </div>
-
-                      <div className="text-green-400 font-semibold">
-
-                        {value.min_range.toFixed(
-                          2
-                        )}{" "}
-                        {
-                          unit
-                        }
-
-                      </div>
-
-                    </div>
-
-                    <div className="text-right">
-
-                      <div className="text-gray-500">
-                        Upper
-                      </div>
-
-                      <div className="text-red-400 font-semibold">
-
-                        {value.max_range.toFixed(
-                          2
-                        )}{" "}
-                        {
-                          unit
-                        }
-
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                  {/* INPUT */}
-
-                  <div className="relative">
-
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={
-                        inputValue
-                      }
-                      onChange={(
-                        e
-                      ) =>
-                        handleChange(
-                          normalizedKey,
-                          e
-                            .target
-                            .value
-                        )
-                      }
-                      className="w-full bg-[#07111F] border border-[#1F2937] rounded-lg px-4 py-3 pr-16 text-white outline-none focus:border-cyan-400"
-                    />
-
-                    {unit && (
-
-                      <span className="absolute right-4 top-3 text-gray-500 text-sm select-none">
-
-                        {unit}
-
-                      </span>
-
-                    )}
-
-                  </div>
-
+            return (
+              <div
+                key={index}
+                className="bg-[#0B1320] border border-[#1F2937] rounded-xl p-4"
+              >
+                {/* PARAMETER */}
+                <div className="text-white text-sm font-semibold mb-3">
+                  {key}
                 </div>
 
-              );
-            }
-          )}
+                {/* LOWER + UPPER */}
+                <div className="flex justify-between text-xs mb-3">
+                  <div>
+                    <div className="text-gray-500">Lower</div>
+                    <div className="text-green-400 font-semibold">
+                      {value.min_range.toFixed(2)} {unit}
+                    </div>
+                  </div>
 
+                  <div className="text-right">
+                    <div className="text-gray-500">Upper</div>
+                    <div className="text-red-400 font-semibold">
+                      {value.max_range.toFixed(2)} {unit}
+                    </div>
+                  </div>
+                </div>
+
+                {/* INPUT */}
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={inputValue}
+                    onChange={(e) =>
+                      handleChange(normalizedKey, e.target.value)
+                    }
+                    className="w-full bg-[#07111F] border border-[#1F2937] rounded-lg px-4 py-3 pr-16 text-white outline-none focus:border-cyan-400"
+                  />
+
+                  {unit && (
+                    <span className="absolute right-4 top-3 text-gray-500 text-sm select-none">
+                      {unit}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* APPLY BUTTON */}
-
         <div className="flex justify-center mt-8">
-
           <button
-            onClick={
-              applyCalibration
-            }
+            onClick={applyCalibration}
             className="bg-cyan-500 hover:bg-cyan-400 transition-all text-black font-bold px-10 py-4 rounded-xl text-lg"
           >
             APPLY CALIBRATION
           </button>
-
         </div>
-
       </div>
 
       {/* STATUS */}
-
       {status && (
-
         <div className="text-center text-cyan-400 mt-6 text-lg font-semibold animate-pulse">
-
           {status}
-
         </div>
-
       )}
-
     </div>
   );
 }
