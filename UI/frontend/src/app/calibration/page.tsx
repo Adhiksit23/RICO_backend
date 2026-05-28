@@ -575,7 +575,7 @@ export default function CalibrationPage() {
       {}
     );
 
-  // Store as string for smooth decimal typing
+  // latest = currently applied machine calibration
   const [latestParams, setLatestParams] =
     useState<Record<string, string>>(
       {}
@@ -584,7 +584,7 @@ export default function CalibrationPage() {
   const [status, setStatus] =
     useState("");
 
-  // ---------------- FETCH APIs ----------------
+  // ---------------- FETCH ----------------
 
   useEffect(() => {
 
@@ -600,11 +600,9 @@ export default function CalibrationPage() {
       .then((res) => res.json())
       .then((data: SummaryData) =>
         setSummary(data)
-      )
-      .catch((err) =>
-        console.error(err)
       );
 
+    // CURRENT APPLIED MACHINE VALUES
     fetch(
       `${base_api}/api/calibration/latest`,
       {
@@ -618,29 +616,27 @@ export default function CalibrationPage() {
       .then(
         (data: Record<string, number>) => {
 
-          const stringified:
+          const formatted:
             Record<string, string> =
             {};
 
           Object.entries(data).forEach(
             ([k, v]) => {
 
-              stringified[k] =
+              formatted[k] =
                 Number(v).toFixed(2);
 
             }
           );
 
           setLatestParams(
-            stringified
+            formatted
           );
 
         }
-      )
-      .catch((err) =>
-        console.error(err)
       );
 
+    // RECOMMENDED RANGES
     fetch(
       `${base_api}/api/calibration/ranges`,
       {
@@ -657,10 +653,11 @@ export default function CalibrationPage() {
             string,
             RangeData
           >
-        ) => setRanges(data)
-      )
-      .catch((err) =>
-        console.error(err)
+        ) => {
+
+          setRanges(data);
+
+        }
       );
 
   }, []);
@@ -696,7 +693,7 @@ export default function CalibrationPage() {
 
   };
 
-  // ---------------- DYNAMIC POSITION ----------------
+  // ---------------- RANGE VISUALIZATION ----------------
 
   const getPercentage = (
     value: number,
@@ -774,9 +771,7 @@ export default function CalibrationPage() {
             "Calibration Applied Successfully"
         );
 
-      } catch (err) {
-
-        console.error(err);
+      } catch {
 
         setStatus(
           "Failed to apply calibration"
@@ -849,52 +844,16 @@ export default function CalibrationPage() {
 
       </div>
 
-      {/* LEGEND */}
-
-      <div className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-5 py-3 mb-4 flex items-center gap-5 text-sm">
-
-        <div className="flex items-center gap-2">
-
-          <div className="w-4 h-4 rounded bg-yellow-500/30" />
-
-          <span className="text-gray-400">
-            Tolerance Band
-          </span>
-
-        </div>
-
-        <div className="flex items-center gap-2">
-
-          <div className="w-4 h-4 rounded bg-green-500/30" />
-
-          <span className="text-gray-400">
-            Zero-Defect Range
-          </span>
-
-        </div>
-
-        <div className="flex items-center gap-2">
-
-          <div className="w-[3px] h-5 rounded bg-cyan-400" />
-
-          <span className="text-gray-400">
-            Current Value Indicator
-          </span>
-
-        </div>
-
-      </div>
-
       {/* TABLE */}
 
       <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl overflow-hidden">
 
-        {/* TABLE HEADER */}
+        {/* HEADER */}
 
         <div className="grid grid-cols-[2.3fr_1fr_1fr_0.7fr_2fr_0.7fr_0.7fr] px-4 py-3 border-b border-[#1F2937] text-[10px] uppercase tracking-[2px] text-gray-500">
 
           <div>Parameter</div>
-          <div>Baseline</div>
+          <div>Current Applied</div>
           <div>Optimal Range</div>
           <div>Std Dev</div>
           <div>Range Visualization</div>
@@ -913,6 +872,7 @@ export default function CalibrationPage() {
           const unit =
             getUnit(key);
 
+          // CURRENT MACHINE VALUE
           const currentValue =
             latestParams[
               normalizedKey
@@ -976,18 +936,18 @@ export default function CalibrationPage() {
 
               </div>
 
-              {/* BASELINE */}
+              {/* CURRENT APPLIED */}
 
               <div className="text-cyan-400 font-semibold text-[16px]">
 
-                {value.baseline.toFixed(
+                {currentValue.toFixed(
                   2
                 )}{" "}
                 {unit}
 
               </div>
 
-              {/* RANGE */}
+              {/* RECOMMENDED RANGE */}
 
               <div className="text-green-400 text-[16px]">
 
@@ -1034,7 +994,7 @@ export default function CalibrationPage() {
                     }}
                   />
 
-                  {/* NEEDLE */}
+                  {/* CURRENT NEEDLE */}
 
                   <div
                     className="absolute top-0 h-full w-[3px] bg-cyan-400 shadow-[0_0_12px_#22d3ee] transition-all duration-500"
@@ -1079,12 +1039,12 @@ export default function CalibrationPage() {
 
       </div>
 
-      {/* UPDATE PARAMETERS */}
+      {/* UPDATE SECTION */}
 
       <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl mt-6 p-5">
 
         <h2 className="text-xl font-semibold mb-5">
-          Update Current Parameters
+          Recommended Calibration Parameters
         </h2>
 
         <div className="grid grid-cols-3 gap-4">
@@ -1199,7 +1159,7 @@ export default function CalibrationPage() {
 
         </div>
 
-        {/* APPLY BUTTON */}
+        {/* APPLY */}
 
         <div className="flex justify-center mt-8">
 
