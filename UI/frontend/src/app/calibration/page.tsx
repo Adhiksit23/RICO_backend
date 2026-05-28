@@ -575,7 +575,7 @@ export default function CalibrationPage() {
       {}
     );
 
-  // CURRENT MACHINE APPLIED VALUES
+  // CURRENT MACHINE VALUES
   const [latestParams, setLatestParams] =
     useState<Record<string, string>>(
       {}
@@ -607,7 +607,8 @@ export default function CalibrationPage() {
       .then((res) => res.json())
       .then((data: SummaryData) =>
         setSummary(data)
-      );
+      )
+      .catch(console.error);
 
     // CURRENT APPLIED VALUES
 
@@ -642,7 +643,8 @@ export default function CalibrationPage() {
           );
 
         }
-      );
+      )
+      .catch(console.error);
 
     // RECOMMENDED RANGES
 
@@ -667,7 +669,8 @@ export default function CalibrationPage() {
           setRanges(data);
 
         }
-      );
+      )
+      .catch(console.error);
 
   }, []);
 
@@ -717,7 +720,7 @@ export default function CalibrationPage() {
 
   };
 
-  // ---------------- DYNAMIC VISUALIZATION ----------------
+  // ---------------- VISUALIZATION ----------------
 
   const getPercentage = (
     value: number,
@@ -972,15 +975,17 @@ export default function CalibrationPage() {
 
       </div>
 
-      {/* CURRENT APPLIED CALIBRATION */}
+      {/* CURRENT APPLIED */}
 
       <div className="mb-3 text-xl font-semibold">
         Current Applied Calibration
       </div>
 
+      {/* TABLE */}
+
       <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl overflow-hidden">
 
-        {/* TABLE HEADER */}
+        {/* HEADER */}
 
         <div className="grid grid-cols-[2.3fr_1fr_1fr_0.7fr_2fr_0.7fr_0.7fr] px-4 py-3 border-b border-[#1F2937] text-[10px] uppercase tracking-[2px] text-gray-500">
 
@@ -1125,7 +1130,7 @@ export default function CalibrationPage() {
                     }}
                   />
 
-                  {/* CURRENT VALUE */}
+                  {/* NEEDLE */}
 
                   <div
                     className="absolute top-0 h-full w-[3px] bg-cyan-400 shadow-[0_0_12px_#22d3ee] transition-all duration-500"
