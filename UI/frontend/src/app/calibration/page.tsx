@@ -3,7 +3,9 @@
 // "use client";
 
 // import { useEffect, useMemo, useState } from "react";
-// const base_api = "https://outspoken-pandemic-surfer.ngrok-free.dev";
+
+// const base_api =
+//   "https://outspoken-pandemic-surfer.ngrok-free.dev";
 
 // type SummaryData = {
 //   samples_analyzed: number;
@@ -18,72 +20,174 @@
 //   max_range: number;
 // };
 
-// const parameterUnits: Record<string, string> = {
-//   "Pouring Time": "s",
-//   "Shot Forward Time": "s",
-//   "Cooling Time": "s",
-//   "Die Open/Core Out Time": "s",
-//   "Ejector Time": "s",
-//   "Extraction Time": "s",
-//   "Spray Time": "s",
-//   "Speed 1": "m/s",
-//   "Speed 2": "m/s",
-//   "Speed 3": "m/s",
-//   "Speed 4": "m/s",
-//   "Metal Pressure": "bar",
-//   "Metal Temperature": "°C",
+// const getUnit = (key: string): string => {
+
+//   const lower = key.toLowerCase();
+
+//   if (lower.includes("mm")) return "mm";
+
+//   if (
+//     lower.includes("bar") ||
+//     lower.includes("pressure")
+//   )
+//     return "bar";
+
+//   if (lower.includes("%")) return "%";
+
+//   if (
+//     lower.includes("sec") ||
+//     lower.includes("time")
+//   )
+//     return "s";
+
+//   if (
+//     lower.includes("°c") ||
+//     lower.includes("temperature")
+//   )
+//     return "°C";
+
+//   if (lower.includes("l/min"))
+//     return "L/min";
+
+//   if (
+//     lower.includes("m/s") ||
+//     lower.includes("speed")
+//   )
+//     return "m/s";
+
+//   if (lower.includes("(t)"))
+//     return "T";
+
+//   return "";
 // };
 
 // export default function CalibrationPage() {
 
-//   const [summary, setSummary] = useState<SummaryData>({
-//     samples_analyzed: 52296,
-//     avg_cpk: 1.75,
-//     excellent_parameters: 14,
-//   });
+//   const [summary, setSummary] =
+//     useState<SummaryData>({
+//       samples_analyzed: 52296,
+//       avg_cpk: 1.75,
+//       excellent_parameters: 14,
+//     });
 
-//   const [ranges, setRanges] = useState<
-//     Record<string, RangeData>
-//   >({});
+//   const [ranges, setRanges] =
+//     useState<Record<string, RangeData>>(
+//       {}
+//     );
 
-//   const [latestParams, setLatestParams] = useState<
-//     Record<string, number>
-//   >({});
+//   // CURRENT MACHINE VALUES
+//   const [latestParams, setLatestParams] =
+//     useState<Record<string, string>>(
+//       {}
+//     );
 
-//   const [status, setStatus] = useState("");
+//   const [status, setStatus] =
+//     useState("");
 
-//   // ---------------- FETCH APIs ----------------
+//   // MACHINE + DIE
+//   const [selectedMachine, setSelectedMachine] =
+//     useState("DC-01");
+
+//   const [selectedDie, setSelectedDie] =
+//     useState("All Dies");
+
+//   // ---------------- FETCH ----------------
 
 //   useEffect(() => {
 
-//     fetch(`${base_api}/api/calibrator/run`, { headers: {
-//       "ngrok-skip-browser-warning": "true", },
-//     })
+//     fetch(
+//       `${base_api}/api/calibrator/run`,
+//       {
+//         headers: {
+//           "ngrok-skip-browser-warning":
+//             "true",
+//         },
+//       }
+//     )
 //       .then((res) => res.json())
-//       .then((data: SummaryData) => {
-//         setSummary(data);
-//       })
-//       .catch((err) => console.error(err));
+//       .then((data: SummaryData) =>
+//         setSummary(data)
+//       )
+//       .catch(console.error);
 
-//     fetch(`${base_api}/api/calibration/latest`, { headers: {
-//       "ngrok-skip-browser-warning": "true", },
-//     })
-//       .then((res) => res.json())
-//       .then((data: Record<string, number>) => {
-//         setLatestParams(data);
-//       })
-//       .catch((err) => console.error(err));
+//     // CURRENT APPLIED VALUES
 
-//     fetch(`${base_api}/api/calibration/ranges`, { headers: {
-//       "ngrok-skip-browser-warning": "true", },
-//     })
+//     fetch(
+//       `${base_api}/api/calibration/latest`,
+//       {
+//         headers: {
+//           "ngrok-skip-browser-warning":
+//             "true",
+//         },
+//       }
+//     )
 //       .then((res) => res.json())
-//       .then((data: Record<string, RangeData>) => {
-//         setRanges(data);
-//       })
-//       .catch((err) => console.error(err));
+//       .then(
+//         (data: Record<string, number>) => {
+
+//           const formatted:
+//             Record<string, string> =
+//             {};
+
+//           Object.entries(data).forEach(
+//             ([k, v]) => {
+
+//               formatted[k] =
+//                 Number(v).toFixed(2);
+
+//             }
+//           );
+
+//           setLatestParams(
+//             formatted
+//           );
+
+//         }
+//       )
+//       .catch(console.error);
+
+//     // RECOMMENDED RANGES
+
+//     fetch(
+//       `${base_api}/api/calibration/ranges`,
+//       {
+//         headers: {
+//           "ngrok-skip-browser-warning":
+//             "true",
+//         },
+//       }
+//     )
+//       .then((res) => res.json())
+//       .then(
+//         (
+//           data: Record<
+//             string,
+//             RangeData
+//           >
+//         ) => {
+
+//           setRanges(data);
+
+//         }
+//       )
+//       .catch(console.error);
 
 //   }, []);
+
+//   // ---------------- DROPDOWNS ----------------
+
+//   const machines = [
+//     "DC-01",
+//     "DC-02",
+//     "DC-03",
+//   ];
+
+//   const dies = [
+//     "All Dies",
+//     "Die 1",
+//     "Die 2",
+//     "Die 3",
+//   ];
 
 //   // ---------------- HELPERS ----------------
 
@@ -91,8 +195,17 @@
 //     return Object.entries(ranges);
 //   }, [ranges]);
 
-//   const normalizeKey = (key: string): string => {
-//     return key.toLowerCase().replaceAll(" ", "_");
+//   const normalizeKey = (
+//     key: string
+//   ): string => {
+
+//     return key
+//       .trim()
+//       .toLowerCase()
+//       .replaceAll("/", "_")
+//       .replaceAll("-", "_")
+//       .replaceAll(" ", "_");
+
 //   };
 
 //   const handleChange = (
@@ -102,21 +215,38 @@
 
 //     setLatestParams((prev) => ({
 //       ...prev,
-//       [key]: Number(value),
+//       [key]: value,
 //     }));
 
 //   };
 
-//   const getNeedlePosition = (
+//   // ---------------- VISUALIZATION ----------------
+
+//   const getPercentage = (
 //     value: number,
 //     min: number,
 //     max: number
 //   ): number => {
 
-//     if (max === min) return 50;
+//     if (
+//       max === min ||
+//       isNaN(value)
+//     )
+//       return 50;
+
+//     const spread =
+//       Math.abs(max - min) || 1;
+
+//     const graphMin =
+//       min - spread * 0.5;
+
+//     const graphMax =
+//       max + spread * 0.5;
 
 //     const percentage =
-//       ((value - min) / (max - min)) * 100;
+//       ((value - graphMin) /
+//         (graphMax - graphMin)) *
+//       100;
 
 //     return Math.max(
 //       0,
@@ -124,42 +254,58 @@
 //     );
 //   };
 
-//   // ---------------- APPLY CALIBRATION ----------------
+//   // ---------------- APPLY ----------------
 
-//   const applyCalibration = async () => {
+//   const applyCalibration =
+//     async () => {
 
-//     try {
+//       try {
 
-//       const res = await fetch(
-//         `${base_api}/api/calibration/apply`,
-//         {
-//           method: "POST",
+//         const payload:
+//           Record<string, number> =
+//           {};
 
-//           headers: {
-//             "Content-Type": "application/json",
-//           },
+//         Object.entries(
+//           latestParams
+//         ).forEach(([k, v]) => {
 
-//           body: JSON.stringify(latestParams),
-//         }
-//       );
+//           payload[k] =
+//             Number(v);
 
-//       const data = await res.json();
+//         });
 
-//       setStatus(
-//         data.message ||
-//         "Calibration Applied Successfully"
-//       );
+//         const res = await fetch(
+//           `${base_api}/api/calibration/apply`,
+//           {
+//             method: "POST",
 
-//     } catch (err) {
+//             headers: {
+//               "Content-Type":
+//                 "application/json",
+//             },
 
-//       console.error(err);
+//             body: JSON.stringify(
+//               payload
+//             ),
+//           }
+//         );
 
-//       setStatus(
-//         "Failed to apply calibration"
-//       );
+//         const data =
+//           await res.json();
 
-//     }
-//   };
+//         setStatus(
+//           data.message ||
+//             "Calibration Applied Successfully"
+//         );
+
+//       } catch {
+
+//         setStatus(
+//           "Failed to apply calibration"
+//         );
+
+//       }
+//     };
 
 //   return (
 
@@ -204,7 +350,7 @@
 //             </div>
 
 //             <div className="text-cyan-400 text-2xl font-bold mt-1">
-//               {Number(summary.avg_cpk).toFixed(2)}
+//               {summary.avg_cpk.toFixed(2)}
 //             </div>
 
 //           </div>
@@ -220,6 +366,74 @@
 //             </div>
 
 //           </div>
+
+//         </div>
+
+//       </div>
+
+//       {/* MACHINE + DIE */}
+
+//       <div className="flex justify-end gap-4 mb-5">
+
+//         {/* MACHINE */}
+
+//         <div>
+
+//           <div className="text-xs text-gray-500 mb-1 uppercase tracking-[2px]">
+//             Machine
+//           </div>
+
+//           <select
+//             value={selectedMachine}
+//             onChange={(e) =>
+//               setSelectedMachine(
+//                 e.target.value
+//               )
+//             }
+//             className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-2 text-white outline-none"
+//           >
+//             {machines.map((machine) => (
+
+//               <option
+//                 key={machine}
+//                 value={machine}
+//               >
+//                 {machine}
+//               </option>
+
+//             ))}
+//           </select>
+
+//         </div>
+
+//         {/* DIE */}
+
+//         <div>
+
+//           <div className="text-xs text-gray-500 mb-1 uppercase tracking-[2px]">
+//             Die
+//           </div>
+
+//           <select
+//             value={selectedDie}
+//             onChange={(e) =>
+//               setSelectedDie(
+//                 e.target.value
+//               )
+//             }
+//             className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-2 text-white outline-none"
+//           >
+//             {dies.map((die) => (
+
+//               <option
+//                 key={die}
+//                 value={die}
+//               >
+//                 {die}
+//               </option>
+
+//             ))}
+//           </select>
 
 //         </div>
 
@@ -261,16 +475,22 @@
 
 //       </div>
 
+//       {/* CURRENT APPLIED */}
+
+//       <div className="mb-3 text-xl font-semibold">
+//         Current Applied Calibration
+//       </div>
+
 //       {/* TABLE */}
 
 //       <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl overflow-hidden">
 
-//         {/* TABLE HEADER */}
+//         {/* HEADER */}
 
 //         <div className="grid grid-cols-[2.3fr_1fr_1fr_0.7fr_2fr_0.7fr_0.7fr] px-4 py-3 border-b border-[#1F2937] text-[10px] uppercase tracking-[2px] text-gray-500">
 
 //           <div>Parameter</div>
-//           <div>Baseline</div>
+//           <div>Current Applied</div>
 //           <div>Optimal Range</div>
 //           <div>Std Dev</div>
 //           <div>Range Visualization</div>
@@ -286,13 +506,36 @@
 //           const normalizedKey =
 //             normalizeKey(key);
 
-//           const currentValue = Number(
-//             latestParams[normalizedKey] ??
-//             value.baseline
-//           );
+//           const unit =
+//             getUnit(key);
+
+//           const currentValue =
+//             latestParams[
+//               normalizedKey
+//             ] !== undefined
+//               ? Number(
+//                   latestParams[
+//                     normalizedKey
+//                   ]
+//                 )
+//               : value.baseline;
+
+//           const minPercent =
+//             getPercentage(
+//               value.min_range,
+//               value.min_range,
+//               value.max_range
+//             );
+
+//           const maxPercent =
+//             getPercentage(
+//               value.max_range,
+//               value.min_range,
+//               value.max_range
+//             );
 
 //           const needlePosition =
-//             getNeedlePosition(
+//             getPercentage(
 //               currentValue,
 //               value.min_range,
 //               value.max_range
@@ -314,24 +557,29 @@
 //                 </div>
 
 //                 <div className="text-gray-500 text-[11px] mt-1">
-//                   Tol: {Number(
-//                     value.min_range
-//                   ).toFixed(2)} - {Number(
-//                     value.max_range
-//                   ).toFixed(2)}{" "}
-//                   {parameterUnits[key]}
+
+//                   Tol:{" "}
+//                   {value.min_range.toFixed(
+//                     2
+//                   )}{" "}
+//                   -{" "}
+//                   {value.max_range.toFixed(
+//                     2
+//                   )}{" "}
+//                   {unit}
+
 //                 </div>
 
 //               </div>
 
-//               {/* BASELINE */}
+//               {/* CURRENT VALUE */}
 
 //               <div className="text-cyan-400 font-semibold text-[16px]">
 
-//                 {Number(
-//                   value.baseline
-//                 ).toFixed(2)}{" "}
-//                 {parameterUnits[key]}
+//                 {currentValue.toFixed(
+//                   2
+//                 )}{" "}
+//                 {unit}
 
 //               </div>
 
@@ -339,14 +587,14 @@
 
 //               <div className="text-green-400 text-[16px]">
 
-//                 {Number(
-//                   value.min_range
-//                 ).toFixed(2)}{" "}
+//                 {value.min_range.toFixed(
+//                   2
+//                 )}{" "}
 //                 -{" "}
-//                 {Number(
-//                   value.max_range
-//                 ).toFixed(2)}{" "}
-//                 {parameterUnits[key]}
+//                 {value.max_range.toFixed(
+//                   2
+//                 )}{" "}
+//                 {unit}
 
 //               </div>
 
@@ -354,31 +602,38 @@
 
 //               <div className="text-gray-400 text-sm">
 
-//                 ±{Number(
-//                   value.tolerance
-//                 ).toFixed(2)}{" "}
-//                 {parameterUnits[key]}
+//                 ±
+//                 {value.tolerance.toFixed(
+//                   2
+//                 )}{" "}
+//                 {unit}
 
 //               </div>
 
-//               {/* RANGE VISUALIZATION */}
+//               {/* VISUALIZATION */}
 
 //               <div className="pr-4">
 
-//                 <div className="relative h-7 rounded-full bg-[#0B1320] border border-[#1F2937] overflow-hidden">
+//                 <div className="relative h-8 rounded-full bg-[#0B1320] border border-[#1F2937] overflow-hidden">
 
 //                   {/* TOLERANCE */}
 
-//                   <div className="absolute left-[8%] top-0 h-full w-[84%] bg-yellow-500/10" />
+//                   <div className="absolute top-0 h-full bg-yellow-500/10 left-0 w-full" />
 
-//                   {/* OPTIMAL RANGE */}
-
-//                   <div className="absolute left-[30%] top-0 h-full w-[40%] bg-green-500/20" />
-
-//                   {/* CURRENT NEEDLE */}
+//                   {/* GREEN RANGE */}
 
 //                   <div
-//                     className="absolute top-0 h-full w-[3px] bg-cyan-400 shadow-[0_0_10px_#22d3ee]"
+//                     className="absolute top-0 h-full bg-green-500/25 transition-all duration-500"
+//                     style={{
+//                       left: `${minPercent}%`,
+//                       width: `${maxPercent - minPercent}%`,
+//                     }}
+//                   />
+
+//                   {/* NEEDLE */}
+
+//                   <div
+//                     className="absolute top-0 h-full w-[3px] bg-cyan-400 shadow-[0_0_12px_#22d3ee] transition-all duration-500"
 //                     style={{
 //                       left: `${needlePosition}%`,
 //                     }}
@@ -404,7 +659,10 @@
 
 //                 <div className="bg-green-500/15 text-green-400 text-xs px-2 py-1 rounded-md text-center font-semibold">
 
-//                   {(1.35 + index * 0.09).toFixed(2)}
+//                   {(
+//                     1.35 +
+//                     index * 0.09
+//                   ).toFixed(2)}
 
 //                 </div>
 
@@ -417,12 +675,12 @@
 
 //       </div>
 
-//       {/* INPUT SECTION */}
+//       {/* NEWLY CORRECTED RECIPE */}
 
 //       <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl mt-6 p-5">
 
 //         <h2 className="text-xl font-semibold mb-5">
-//           Update Current Parameters
+//           Newly Corrected Recipe
 //         </h2>
 
 //         <div className="grid grid-cols-3 gap-4">
@@ -432,37 +690,101 @@
 //             const normalizedKey =
 //               normalizeKey(key);
 
-//             const currentValue = Number(
-//               latestParams[normalizedKey] ??
-//               value.baseline
-//             );
+//             const unit =
+//               getUnit(key);
+
+//             const inputValue =
+//               latestParams[
+//                 normalizedKey
+//               ] !== undefined
+//                 ? latestParams[
+//                     normalizedKey
+//                   ]
+//                 : value.baseline.toFixed(
+//                     2
+//                   );
 
 //             return (
 
-//               <div key={index}>
+//               <div
+//                 key={index}
+//                 className="bg-[#0B1320] border border-[#1F2937] rounded-xl p-4"
+//               >
 
-//                 <label className="text-gray-400 text-sm">
+//                 {/* PARAMETER */}
+
+//                 <div className="text-white text-sm font-semibold mb-3">
+
 //                   {key}
-//                 </label>
 
-//                 <div className="relative mt-2">
+//                 </div>
+
+//                 {/* LOWER + UPPER */}
+
+//                 <div className="flex justify-between text-xs mb-3">
+
+//                   <div>
+
+//                     <div className="text-gray-500">
+//                       Lower
+//                     </div>
+
+//                     <div className="text-green-400 font-semibold">
+
+//                       {value.min_range.toFixed(
+//                         2
+//                       )}{" "}
+//                       {unit}
+
+//                     </div>
+
+//                   </div>
+
+//                   <div className="text-right">
+
+//                     <div className="text-gray-500">
+//                       Upper
+//                     </div>
+
+//                     <div className="text-red-400 font-semibold">
+
+//                       {value.max_range.toFixed(
+//                         2
+//                       )}{" "}
+//                       {unit}
+
+//                     </div>
+
+//                   </div>
+
+//                 </div>
+
+//                 {/* INPUT */}
+
+//                 <div className="relative">
 
 //                   <input
 //                     type="number"
 //                     step="0.01"
-//                     value={currentValue}
+//                     value={inputValue}
 //                     onChange={(e) =>
 //                       handleChange(
 //                         normalizedKey,
 //                         e.target.value
 //                       )
 //                     }
-//                     className="w-full bg-[#0B1320] border border-[#1F2937] rounded-lg px-4 py-3 pr-16 text-white outline-none focus:border-cyan-400"
+//                     className="w-full bg-[#07111F] border border-[#1F2937] rounded-lg px-4 py-3 pr-16 text-white outline-none focus:border-cyan-400"
 //                   />
 
-//                   <span className="absolute right-4 top-3 text-gray-500 text-sm">
-//                     {parameterUnits[key]}
-//                   </span>
+//                   {unit && (
+
+//                     <span className="absolute right-4 top-3 text-gray-500 text-sm select-none">
+
+//                       {unit}
+
+//                     </span>
+
+//                   )}
 
 //                 </div>
 
@@ -473,7 +795,7 @@
 
 //         </div>
 
-//         {/* SINGLE APPLY BUTTON */}
+//         {/* APPLY */}
 
 //         <div className="flex justify-center mt-8">
 
@@ -490,19 +812,28 @@
 
 //       {/* STATUS */}
 
-//       <div className="text-center text-cyan-400 mt-6 text-lg font-semibold">
+//       {status && (
 
-//         {status}
+//         <div className="text-center text-cyan-400 mt-6 text-lg font-semibold animate-pulse">
 
-//       </div>
+//           {status}
+
+//         </div>
+
+//       )}
 
 //     </div>
 //   );
 // }
 
-"use client";
+ "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 
 const base_api =
   "https://outspoken-pandemic-surfer.ngrok-free.dev";
@@ -520,11 +851,17 @@ type RangeData = {
   max_range: number;
 };
 
-const getUnit = (key: string): string => {
+const getUnit = (
+  key: string
+): string => {
 
-  const lower = key.toLowerCase();
+  const lower =
+    key.toLowerCase();
 
-  if (lower.includes("mm")) return "mm";
+  if (
+    lower.includes("mm")
+  )
+    return "mm";
 
   if (
     lower.includes("bar") ||
@@ -532,7 +869,10 @@ const getUnit = (key: string): string => {
   )
     return "bar";
 
-  if (lower.includes("%")) return "%";
+  if (
+    lower.includes("%")
+  )
+    return "%";
 
   if (
     lower.includes("sec") ||
@@ -546,7 +886,9 @@ const getUnit = (key: string): string => {
   )
     return "°C";
 
-  if (lower.includes("l/min"))
+  if (
+    lower.includes("l/min")
+  )
     return "L/min";
 
   if (
@@ -555,7 +897,9 @@ const getUnit = (key: string): string => {
   )
     return "m/s";
 
-  if (lower.includes("(t)"))
+  if (
+    lower.includes("(t)")
+  )
     return "T";
 
   return "";
@@ -565,35 +909,154 @@ export default function CalibrationPage() {
 
   const [summary, setSummary] =
     useState<SummaryData>({
-      samples_analyzed: 52296,
+      samples_analyzed:
+        52296,
       avg_cpk: 1.75,
-      excellent_parameters: 14,
+      excellent_parameters:
+        14,
     });
 
   const [ranges, setRanges] =
-    useState<Record<string, RangeData>>(
-      {}
-    );
+    useState<
+      Record<
+        string,
+        RangeData
+      >
+    >({});
 
-  // CURRENT MACHINE VALUES
-  const [latestParams, setLatestParams] =
-    useState<Record<string, string>>(
-      {}
-    );
+  // NORMALIZED FRONTEND VALUES
+
+  const [
+    latestParams,
+    setLatestParams,
+  ] = useState<
+    Record<string, string>
+  >({});
+
+  // NORMALIZED -> BACKEND RAW KEY MAP
+
+  const [keyMap, setKeyMap] =
+    useState<
+      Record<string, string>
+    >({});
 
   const [status, setStatus] =
     useState("");
 
   // MACHINE + DIE
-  const [selectedMachine, setSelectedMachine] =
-    useState("DC-01");
 
-  const [selectedDie, setSelectedDie] =
-    useState("All Dies");
+  const [
+    selectedMachine,
+    setSelectedMachine,
+  ] = useState("DC-01");
 
-  // ---------------- FETCH ----------------
+  const [
+    selectedDie,
+    setSelectedDie,
+  ] = useState(
+    "All Dies"
+  );
+
+  // ---------------- HELPERS ----------------
+
+  const normalizeKey = (
+    key: string
+  ): string => {
+
+    return key
+      .trim()
+      .toLowerCase()
+      .replaceAll("/", "_")
+      .replaceAll("-", "_")
+      .replaceAll(" ", "_");
+
+  };
+
+  // ---------------- FETCH LATEST ----------------
+
+  const fetchLatest =
+    useCallback(
+      async () => {
+
+        try {
+
+          const res =
+            await fetch(
+              `${base_api}/api/calibration/latest`,
+              {
+                headers: {
+                  "ngrok-skip-browser-warning":
+                    "true",
+                },
+              }
+            );
+
+          const data =
+            await res.json();
+
+          const formatted:
+            Record<
+              string,
+              string
+            > = {};
+
+          const mapping:
+            Record<
+              string,
+              string
+            > = {};
+
+          // NORMALIZE + MAP BACKEND KEYS
+
+          Object.entries(
+            data
+          ).forEach(
+            ([k, v]) => {
+
+              const normalized =
+                normalizeKey(
+                  k
+                );
+
+              formatted[
+                normalized
+              ] =
+                Number(
+                  v
+                ).toFixed(2);
+
+              mapping[
+                normalized
+              ] = k;
+
+            }
+          );
+
+          setLatestParams(
+            formatted
+          );
+
+          setKeyMap(
+            mapping
+          );
+
+        } catch (err) {
+
+          console.error(
+            "Failed to fetch latest calibration",
+            err
+          );
+
+        }
+      },
+      []
+    );
+
+  // ---------------- INITIAL FETCH ----------------
 
   useEffect(() => {
+
+    // SUMMARY
 
     fetch(
       `${base_api}/api/calibrator/run`,
@@ -604,49 +1067,26 @@ export default function CalibrationPage() {
         },
       }
     )
-      .then((res) => res.json())
-      .then((data: SummaryData) =>
-        setSummary(data)
+      .then((res) =>
+        res.json()
       )
-      .catch(console.error);
-
-    // CURRENT APPLIED VALUES
-
-    fetch(
-      `${base_api}/api/calibration/latest`,
-      {
-        headers: {
-          "ngrok-skip-browser-warning":
-            "true",
-        },
-      }
-    )
-      .then((res) => res.json())
       .then(
-        (data: Record<string, number>) => {
-
-          const formatted:
-            Record<string, string> =
-            {};
-
-          Object.entries(data).forEach(
-            ([k, v]) => {
-
-              formatted[k] =
-                Number(v).toFixed(2);
-
-            }
-          );
-
-          setLatestParams(
-            formatted
-          );
-
-        }
+        (
+          data: SummaryData
+        ) =>
+          setSummary(
+            data
+          )
       )
-      .catch(console.error);
+      .catch(
+        console.error
+      );
 
-    // RECOMMENDED RANGES
+    // CURRENT VALUES
+
+    fetchLatest();
+
+    // RANGES
 
     fetch(
       `${base_api}/api/calibration/ranges`,
@@ -657,7 +1097,9 @@ export default function CalibrationPage() {
         },
       }
     )
-      .then((res) => res.json())
+      .then((res) =>
+        res.json()
+      )
       .then(
         (
           data: Record<
@@ -666,13 +1108,50 @@ export default function CalibrationPage() {
           >
         ) => {
 
-          setRanges(data);
+          setRanges(
+            data
+          );
 
         }
       )
-      .catch(console.error);
+      .catch(
+        console.error
+      );
 
-  }, []);
+  }, [fetchLatest]);
+
+  // ---------------- TAB VISIBILITY REFRESH ----------------
+
+  useEffect(() => {
+
+    const handleVisibility =
+      async () => {
+
+        if (
+          document.visibilityState ===
+          "visible"
+        ) {
+
+          await fetchLatest();
+
+        }
+      };
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibility
+    );
+
+    return () => {
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibility
+      );
+
+    };
+
+  }, [fetchLatest]);
 
   // ---------------- DROPDOWNS ----------------
 
@@ -689,34 +1168,30 @@ export default function CalibrationPage() {
     "Die 3",
   ];
 
-  // ---------------- HELPERS ----------------
+  // ---------------- ROWS ----------------
 
-  const rows = useMemo(() => {
-    return Object.entries(ranges);
-  }, [ranges]);
+  const rows =
+    useMemo(() => {
 
-  const normalizeKey = (
-    key: string
-  ): string => {
+      return Object.entries(
+        ranges
+      );
 
-    return key
-      .trim()
-      .toLowerCase()
-      .replaceAll("/", "_")
-      .replaceAll("-", "_")
-      .replaceAll(" ", "_");
+    }, [ranges]);
 
-  };
+  // ---------------- INPUT CHANGE ----------------
 
   const handleChange = (
     key: string,
     value: string
   ) => {
 
-    setLatestParams((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+    setLatestParams(
+      (prev) => ({
+        ...prev,
+        [key]: value,
+      })
+    );
 
   };
 
@@ -735,22 +1210,31 @@ export default function CalibrationPage() {
       return 50;
 
     const spread =
-      Math.abs(max - min) || 1;
+      Math.abs(
+        max - min
+      ) || 1;
 
     const graphMin =
-      min - spread * 0.5;
+      min -
+      spread * 0.5;
 
     const graphMax =
-      max + spread * 0.5;
+      max +
+      spread * 0.5;
 
     const percentage =
-      ((value - graphMin) /
-        (graphMax - graphMin)) *
+      ((value -
+        graphMin) /
+        (graphMax -
+          graphMin)) *
       100;
 
     return Math.max(
       0,
-      Math.min(100, percentage)
+      Math.min(
+        100,
+        percentage
+      )
     );
   };
 
@@ -762,33 +1246,62 @@ export default function CalibrationPage() {
       try {
 
         const payload:
-          Record<string, number> =
-          {};
+          Record<
+            string,
+            number
+          > = {};
 
-        Object.entries(
-          latestParams
-        ).forEach(([k, v]) => {
+        // ALWAYS SEND COMPLETE PAYLOAD
 
-          payload[k] =
-            Number(v);
+        rows.forEach(
+          ([key, value]) => {
 
-        });
+            const normalizedKey =
+              normalizeKey(
+                key
+              );
 
-        const res = await fetch(
-          `${base_api}/api/calibration/apply`,
-          {
-            method: "POST",
+            const backendKey =
+              keyMap[
+                normalizedKey
+              ] || key;
 
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
+            const finalValue =
+              latestParams[
+                normalizedKey
+              ] !==
+              undefined
+                ? Number(
+                    latestParams[
+                      normalizedKey
+                    ]
+                  )
+                : value.baseline;
 
-            body: JSON.stringify(
-              payload
-            ),
+            payload[
+              backendKey
+            ] = finalValue;
+
           }
         );
+
+        const res =
+          await fetch(
+            `${base_api}/api/calibration/apply`,
+            {
+              method:
+                "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify(
+                payload
+              ),
+            }
+          );
 
         const data =
           await res.json();
@@ -797,6 +1310,10 @@ export default function CalibrationPage() {
           data.message ||
             "Calibration Applied Successfully"
         );
+
+        // REFRESH FROM DB
+
+        await fetchLatest();
 
       } catch {
 
@@ -850,7 +1367,9 @@ export default function CalibrationPage() {
             </div>
 
             <div className="text-cyan-400 text-2xl font-bold mt-1">
-              {summary.avg_cpk.toFixed(2)}
+              {summary.avg_cpk.toFixed(
+                2
+              )}
             </div>
 
           </div>
@@ -862,7 +1381,10 @@ export default function CalibrationPage() {
             </div>
 
             <div className="text-green-400 text-2xl font-bold mt-1">
-              {summary.excellent_parameters} / 21
+              {
+                summary.excellent_parameters
+              }{" "}
+              / 21
             </div>
 
           </div>
@@ -884,24 +1406,39 @@ export default function CalibrationPage() {
           </div>
 
           <select
-            value={selectedMachine}
-            onChange={(e) =>
+            value={
+              selectedMachine
+            }
+            onChange={(
+              e
+            ) =>
               setSelectedMachine(
-                e.target.value
+                e.target
+                  .value
               )
             }
             className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-2 text-white outline-none"
           >
-            {machines.map((machine) => (
+            {machines.map(
+              (
+                machine
+              ) => (
 
-              <option
-                key={machine}
-                value={machine}
-              >
-                {machine}
-              </option>
+                <option
+                  key={
+                    machine
+                  }
+                  value={
+                    machine
+                  }
+                >
+                  {
+                    machine
+                  }
+                </option>
 
-            ))}
+              )
+            )}
           </select>
 
         </div>
@@ -915,24 +1452,37 @@ export default function CalibrationPage() {
           </div>
 
           <select
-            value={selectedDie}
-            onChange={(e) =>
+            value={
+              selectedDie
+            }
+            onChange={(
+              e
+            ) =>
               setSelectedDie(
-                e.target.value
+                e.target
+                  .value
               )
             }
             className="bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-2 text-white outline-none"
           >
-            {dies.map((die) => (
+            {dies.map(
+              (
+                die
+              ) => (
 
-              <option
-                key={die}
-                value={die}
-              >
-                {die}
-              </option>
+                <option
+                  key={
+                    die
+                  }
+                  value={
+                    die
+                  }
+                >
+                  {die}
+                </option>
 
-            ))}
+              )
+            )}
           </select>
 
         </div>
@@ -1001,64 +1551,108 @@ export default function CalibrationPage() {
 
         {/* ROWS */}
 
-        {rows.map(([key, value], index) => {
+        {rows.map(
+          (
+            [
+              key,
+              value,
+            ],
+            index
+          ) => {
 
-          const normalizedKey =
-            normalizeKey(key);
+            const normalizedKey =
+              normalizeKey(
+                key
+              );
 
-          const unit =
-            getUnit(key);
+            const unit =
+              getUnit(
+                key
+              );
 
-          const currentValue =
-            latestParams[
-              normalizedKey
-            ] !== undefined
-              ? Number(
-                  latestParams[
-                    normalizedKey
-                  ]
-                )
-              : value.baseline;
+            const currentValue =
+              latestParams[
+                normalizedKey
+              ] !==
+              undefined
+                ? Number(
+                    latestParams[
+                      normalizedKey
+                    ]
+                  )
+                : value.baseline;
 
-          const minPercent =
-            getPercentage(
-              value.min_range,
-              value.min_range,
-              value.max_range
-            );
+            const minPercent =
+              getPercentage(
+                value.min_range,
+                value.min_range,
+                value.max_range
+              );
 
-          const maxPercent =
-            getPercentage(
-              value.max_range,
-              value.min_range,
-              value.max_range
-            );
+            const maxPercent =
+              getPercentage(
+                value.max_range,
+                value.min_range,
+                value.max_range
+              );
 
-          const needlePosition =
-            getPercentage(
-              currentValue,
-              value.min_range,
-              value.max_range
-            );
+            const needlePosition =
+              getPercentage(
+                currentValue,
+                value.min_range,
+                value.max_range
+              );
 
-          return (
+            return (
 
-            <div
-              key={index}
-              className="grid grid-cols-[2.3fr_1fr_1fr_0.7fr_2fr_0.7fr_0.7fr] px-4 py-4 border-b border-[#182232] items-center hover:bg-[#0D1625] transition-all"
-            >
+              <div
+                key={
+                  index
+                }
+                className="grid grid-cols-[2.3fr_1fr_1fr_0.7fr_2fr_0.7fr_0.7fr] px-4 py-4 border-b border-[#182232] items-center hover:bg-[#0D1625] transition-all"
+              >
 
-              {/* PARAMETER */}
+                {/* PARAMETER */}
 
-              <div>
+                <div>
 
-                <div className="text-white text-[16px] font-semibold">
-                  {key}
+                  <div className="text-white text-[16px] font-semibold">
+                    {key}
+                  </div>
+
+                  <div className="text-gray-500 text-[11px] mt-1">
+
+                    Tol:{" "}
+                    {value.min_range.toFixed(
+                      2
+                    )}{" "}
+                    -{" "}
+                    {value.max_range.toFixed(
+                      2
+                    )}{" "}
+                    {
+                      unit
+                    }
+
+                  </div>
+
                 </div>
 
-                <div className="text-gray-500 text-[11px] mt-1">
+                {/* CURRENT VALUE */}
 
-                  Tol:{" "}
+                <div className="text-cyan-400 font-semibold text-[16px]">
+
+                  {currentValue.toFixed(
+                    2
+                  )}{" "}
+                  {unit}
+
+                </div>
+
+                {/* RANGE */}
+
+                <div className="text-green-400 text-[16px]">
+
                   {value.min_range.toFixed(
                     2
                   )}{" "}
@@ -1070,108 +1664,89 @@ export default function CalibrationPage() {
 
                 </div>
 
-              </div>
+                {/* STD DEV */}
 
-              {/* CURRENT VALUE */}
+                <div className="text-gray-400 text-sm">
 
-              <div className="text-cyan-400 font-semibold text-[16px]">
+                  ±
+                  {value.tolerance.toFixed(
+                    2
+                  )}{" "}
+                  {unit}
 
-                {currentValue.toFixed(
-                  2
-                )}{" "}
-                {unit}
+                </div>
 
-              </div>
+                {/* VISUALIZATION */}
 
-              {/* RANGE */}
+                <div className="pr-4">
 
-              <div className="text-green-400 text-[16px]">
+                  <div className="relative h-8 rounded-full bg-[#0B1320] border border-[#1F2937] overflow-hidden">
 
-                {value.min_range.toFixed(
-                  2
-                )}{" "}
-                -{" "}
-                {value.max_range.toFixed(
-                  2
-                )}{" "}
-                {unit}
+                    {/* TOLERANCE */}
 
-              </div>
+                    <div className="absolute top-0 h-full bg-yellow-500/10 left-0 w-full" />
 
-              {/* STD DEV */}
+                    {/* GREEN RANGE */}
 
-              <div className="text-gray-400 text-sm">
+                    <div
+                      className="absolute top-0 h-full bg-green-500/25 transition-all duration-500"
+                      style={{
+                        left: `${minPercent}%`,
+                        width: `${
+                          maxPercent -
+                          minPercent
+                        }%`,
+                      }}
+                    />
 
-                ±
-                {value.tolerance.toFixed(
-                  2
-                )}{" "}
-                {unit}
+                    {/* NEEDLE */}
 
-              </div>
+                    <div
+                      className="absolute top-0 h-full w-[3px] bg-cyan-400 shadow-[0_0_12px_#22d3ee] transition-all duration-500"
+                      style={{
+                        left: `${needlePosition}%`,
+                      }}
+                    />
 
-              {/* VISUALIZATION */}
+                  </div>
 
-              <div className="pr-4">
+                </div>
 
-                <div className="relative h-8 rounded-full bg-[#0B1320] border border-[#1F2937] overflow-hidden">
+                {/* SAMPLES */}
 
-                  {/* TOLERANCE */}
+                <div className="text-gray-400 text-sm">
 
-                  <div className="absolute top-0 h-full bg-yellow-500/10 left-0 w-full" />
+                  {Math.floor(
+                    2000 +
+                      index *
+                        120
+                  ).toLocaleString()}
 
-                  {/* GREEN RANGE */}
+                </div>
 
-                  <div
-                    className="absolute top-0 h-full bg-green-500/25 transition-all duration-500"
-                    style={{
-                      left: `${minPercent}%`,
-                      width: `${maxPercent - minPercent}%`,
-                    }}
-                  />
+                {/* CPK */}
 
-                  {/* NEEDLE */}
+                <div>
 
-                  <div
-                    className="absolute top-0 h-full w-[3px] bg-cyan-400 shadow-[0_0_12px_#22d3ee] transition-all duration-500"
-                    style={{
-                      left: `${needlePosition}%`,
-                    }}
-                  />
+                  <div className="bg-green-500/15 text-green-400 text-xs px-2 py-1 rounded-md text-center font-semibold">
+
+                    {(
+                      1.35 +
+                      index *
+                        0.09
+                    ).toFixed(
+                      2
+                    )}
+
+                  </div>
 
                 </div>
 
               </div>
 
-              {/* SAMPLES */}
-
-              <div className="text-gray-400 text-sm">
-
-                {Math.floor(
-                  2000 + index * 120
-                ).toLocaleString()}
-
-              </div>
-
-              {/* CPK */}
-
-              <div>
-
-                <div className="bg-green-500/15 text-green-400 text-xs px-2 py-1 rounded-md text-center font-semibold">
-
-                  {(
-                    1.35 +
-                    index * 0.09
-                  ).toFixed(2)}
-
-                </div>
-
-              </div>
-
-            </div>
-
-          );
-        })}
+            );
+          }
+        )}
 
       </div>
 
@@ -1185,122 +1760,153 @@ export default function CalibrationPage() {
 
         <div className="grid grid-cols-3 gap-4">
 
-          {rows.map(([key, value], index) => {
+          {rows.map(
+            (
+              [
+                key,
+                value,
+              ],
+              index
+            ) => {
 
-            const normalizedKey =
-              normalizeKey(key);
+              const normalizeKey = useCallback((key: string): string => {
+  return key
+    .trim()
+    .toLowerCase()
+    .replaceAll("/", "_")
+    .replaceAll("-", "_")
+    .replaceAll(" ", "_");
+}, []);
 
-            const unit =
-              getUnit(key);
+              const unit =
+                getUnit(
+                  key
+                );
 
-            const inputValue =
-              latestParams[
-                normalizedKey
-              ] !== undefined
-                ? latestParams[
-                    normalizedKey
-                  ]
-                : value.baseline.toFixed(
-                    2
-                  );
+              const inputValue =
+                latestParams[
+                  normalizedKey
+                ] !==
+                undefined
+                  ? latestParams[
+                      normalizedKey
+                    ]
+                  : value.baseline.toFixed(
+                      2
+                    );
 
-            return (
+              return (
 
-              <div
-                key={index}
-                className="bg-[#0B1320] border border-[#1F2937] rounded-xl p-4"
-              >
+                <div
+                  key={
+                    index
+                  }
+                  className="bg-[#0B1320] border border-[#1F2937] rounded-xl p-4"
+                >
 
-                {/* PARAMETER */}
+                  {/* PARAMETER */}
 
-                <div className="text-white text-sm font-semibold mb-3">
+                  <div className="text-white text-sm font-semibold mb-3">
 
-                  {key}
+                    {key}
 
-                </div>
+                  </div>
 
-                {/* LOWER + UPPER */}
+                  {/* LOWER + UPPER */}
 
-                <div className="flex justify-between text-xs mb-3">
+                  <div className="flex justify-between text-xs mb-3">
 
-                  <div>
+                    <div>
 
-                    <div className="text-gray-500">
-                      Lower
+                      <div className="text-gray-500">
+                        Lower
+                      </div>
+
+                      <div className="text-green-400 font-semibold">
+
+                        {value.min_range.toFixed(
+                          2
+                        )}{" "}
+                        {
+                          unit
+                        }
+
+                      </div>
+
                     </div>
 
-                    <div className="text-green-400 font-semibold">
+                    <div className="text-right">
 
-                      {value.min_range.toFixed(
-                        2
-                      )}{" "}
-                      {unit}
+                      <div className="text-gray-500">
+                        Upper
+                      </div>
+
+                      <div className="text-red-400 font-semibold">
+
+                        {value.max_range.toFixed(
+                          2
+                        )}{" "}
+                        {
+                          unit
+                        }
+
+                      </div>
 
                     </div>
 
                   </div>
 
-                  <div className="text-right">
+                  {/* INPUT */}
 
-                    <div className="text-gray-500">
-                      Upper
-                    </div>
+                  <div className="relative">
 
-                    <div className="text-red-400 font-semibold">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={
+                        inputValue
+                      }
+                      onChange={(
+                        e
+                      ) =>
+                        handleChange(
+                          normalizedKey,
+                          e
+                            .target
+                            .value
+                        )
+                      }
+                      className="w-full bg-[#07111F] border border-[#1F2937] rounded-lg px-4 py-3 pr-16 text-white outline-none focus:border-cyan-400"
+                    />
 
-                      {value.max_range.toFixed(
-                        2
-                      )}{" "}
-                      {unit}
+                    {unit && (
 
-                    </div>
+                      <span className="absolute right-4 top-3 text-gray-500 text-sm select-none">
+
+                        {unit}
+
+                      </span>
+
+                    )}
 
                   </div>
 
                 </div>
 
-                {/* INPUT */}
-
-                <div className="relative">
-
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={inputValue}
-                    onChange={(e) =>
-                      handleChange(
-                        normalizedKey,
-                        e.target.value
-                      )
-                    }
-                    className="w-full bg-[#07111F] border border-[#1F2937] rounded-lg px-4 py-3 pr-16 text-white outline-none focus:border-cyan-400"
-                  />
-
-                  {unit && (
-
-                    <span className="absolute right-4 top-3 text-gray-500 text-sm select-none">
-
-                      {unit}
-
-                    </span>
-
-                  )}
-
-                </div>
-
-              </div>
-
-            );
-          })}
+              );
+            }
+          )}
 
         </div>
 
-        {/* APPLY */}
+        {/* APPLY BUTTON */}
 
         <div className="flex justify-center mt-8">
 
           <button
-            onClick={applyCalibration}
+            onClick={
+              applyCalibration
+            }
             className="bg-cyan-500 hover:bg-cyan-400 transition-all text-black font-bold px-10 py-4 rounded-xl text-lg"
           >
             APPLY CALIBRATION
