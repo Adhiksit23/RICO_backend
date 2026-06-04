@@ -147,7 +147,6 @@ def get_latest_parameters():
 def compute_calibration_ranges():
     baselines = calibrate_params.main()
     vals = {name: {"baseline": baselines[name][0], "tolerance": baselines[name][1], "min_range": baselines[name][2], "max_range": baselines[name][3]} for name, v in baselines.items()}
-    vals["ACCEL. POINT mm "]['baseline'] = 0
     return vals
 
 
