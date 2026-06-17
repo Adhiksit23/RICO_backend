@@ -461,7 +461,6 @@
 //   );
 // }
 
-
 "use client";
 
 import {
@@ -472,6 +471,7 @@ import {
 } from "react";
 
 const base_api = "https://outspoken-pandemic-surfer.ngrok-free.dev";
+// const base_api = "http://127.0.0.1:8000";
 
 type SummaryData = {
   samples_analyzed: number;
@@ -546,14 +546,22 @@ export default function CalibrationPage() {
       });
 
       setLatestParams(formatted);
-      if (Object.keys(baselineSnapshot).length === 0) {
-        setBaselineSnapshot(formatted);
-      }
       setKeyMap(mapping);
     } catch (err) {
       console.error("Failed to fetch latest calibration", err);
     }
-  }, [normalizeKey, baselineSnapshot]);
+  }, [normalizeKey]);
+
+  // ---------------- SNAPSHOT INITIALIZATION ----------------
+
+  useEffect(() => {
+    if (
+      Object.keys(latestParams).length > 0 &&
+      Object.keys(baselineSnapshot).length === 0
+    ) {
+      setBaselineSnapshot({ ...latestParams });
+    }
+  }, [latestParams, baselineSnapshot]);
 
   // ---------------- INITIAL FETCH ----------------
 
@@ -603,35 +611,52 @@ export default function CalibrationPage() {
     }));
   };
 
-  // ---------------- APPLY ----------------
+  // ---------------- ACTIONS (UPDATE / APPLY) ----------------
+
+  const buildPayload = () => {
+    const payload: Record<string, number> = {};
+    rows.forEach(([key, value]) => {
+      const normalizedKey = normalizeKey(key);
+      const backendKey = keyMap[normalizedKey] || key;
+
+      const finalValue =
+        latestParams[normalizedKey] !== undefined
+          ? Number(latestParams[normalizedKey])
+          : value.baseline;
+
+      payload[backendKey] = finalValue;
+    });
+    return payload;
+  };
+
+  const updateCalibration = async () => {
+    try {
+      const payload = buildPayload();
+      const res = await fetch(`${base_api}/api/calibration/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      setStatus(data.message || "Parameters Updated Successfully");
+      await fetchLatest();
+    } catch {
+      setStatus("Failed to update calibration parameters");
+    }
+  };
 
   const applyCalibration = async () => {
     try {
-      const payload: Record<string, number> = {};
-
-      rows.forEach(([key, value]) => {
-        const normalizedKey = normalizeKey(key);
-        const backendKey = keyMap[normalizedKey] || key;
-
-        const finalValue =
-          latestParams[normalizedKey] !== undefined
-            ? Number(latestParams[normalizedKey])
-            : value.baseline;
-
-        payload[backendKey] = finalValue;
-      });
-
+      const payload = buildPayload();
       const res = await fetch(`${base_api}/api/calibration/apply`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       setStatus(data.message || "Calibration Applied Successfully");
-
       await fetchLatest();
     } catch {
       setStatus("Failed to apply calibration");
@@ -640,46 +665,45 @@ export default function CalibrationPage() {
 
   return (
     <div className="bg-[#07111F] min-h-screen text-white w-full max-w-none px-6 md:px-12 py-8">
+      
       {/* HEADER */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-start mb-8">
-        <div>
-          <h1 className="text-2xl md:text-[38px] font-bold leading-tight md:leading-none">Machine Calibration</h1>
-          <p className="text-gray-500 mt-2 text-sm md:text-base">
-            Zero-defect operating windows derived from historical production data
-          </p>
+      <div className="mb-8">
+        <h1 className="text-2xl md:text-[38px] font-bold leading-tight md:leading-none">Machine Calibration</h1>
+        <p className="text-gray-500 mt-2 text-sm md:text-base">
+          Zero-defect operating windows derived from historical production data
+        </p>
+      </div>
+
+      {/* SUMMARY STATS - Full Width Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl p-5 md:p-6 shadow-sm">
+          <div className="text-[11px] uppercase tracking-[2px] text-gray-500 mb-1.5">Samples Analyzed</div>
+          <div className="text-white text-3xl font-bold">
+            {summary.samples_analyzed.toLocaleString()}
+          </div>
         </div>
 
-        {/* SUMMARY STATS */}
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 w-full lg:w-auto">
-          <div className="bg-[#121B2B] border border-[#1F2937] rounded-lg p-4 min-w-[110px] text-center lg:text-left">
-            <div className="text-[10px] md:text-[11px] uppercase tracking-[2px] text-gray-500">Samples</div>
-            <div className="text-white text-lg md:text-2xl font-bold mt-1">
-              {summary.samples_analyzed.toLocaleString()}
-            </div>
-          </div>
+        <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl p-5 md:p-6 shadow-sm">
+          <div className="text-[11px] uppercase tracking-[2px] text-gray-500 mb-1.5">Average CPK</div>
+          <div className="text-cyan-400 text-3xl font-bold">{summary.avg_cpk.toFixed(2)}</div>
+        </div>
 
-          <div className="bg-[#121B2B] border border-[#1F2937] rounded-lg p-4 min-w-[110px] text-center lg:text-left">
-            <div className="text-[10px] md:text-[11px] uppercase tracking-[2px] text-gray-500">Avg CPK</div>
-            <div className="text-cyan-400 text-lg md:text-2xl font-bold mt-1">{summary.avg_cpk.toFixed(2)}</div>
-          </div>
-
-          <div className="bg-[#121B2B] border border-green-500/20 rounded-lg p-4 min-w-[110px] text-center lg:text-left">
-            <div className="text-[10px] md:text-[11px] uppercase tracking-[2px] text-gray-500">Excellent</div>
-            <div className="text-green-400 text-lg md:text-2xl font-bold mt-1">
-              {summary.excellent_parameters} / 21
-            </div>
+        <div className="bg-[#121B2B] border border-green-500/20 rounded-xl p-5 md:p-6 shadow-sm">
+          <div className="text-[11px] uppercase tracking-[2px] text-gray-500 mb-1.5">Excellent Parameters</div>
+          <div className="text-green-400 text-3xl font-bold">
+            {summary.excellent_parameters} / 21
           </div>
         </div>
       </div>
 
       {/* FILTERS */}
-      <div className="flex flex-col sm:flex-row justify-end gap-4 mb-8">
-        <div className="w-full sm:w-auto">
-          <div className="text-xs text-gray-500 mb-1 uppercase tracking-[2px]">Machine</div>
+      <div className="flex flex-wrap gap-4 mb-10">
+        <div className="w-full sm:w-56">
+          <div className="text-xs text-gray-500 mb-1.5 uppercase tracking-[2px]">Machine</div>
           <select
             value={selectedMachine}
             onChange={(e) => setSelectedMachine(e.target.value)}
-            className="w-full bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-2.5 text-sm text-white outline-none"
+            className="w-full bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-3 text-sm text-white outline-none cursor-pointer"
           >
             {machines.map((machine) => (
               <option key={machine} value={machine}>
@@ -689,12 +713,12 @@ export default function CalibrationPage() {
           </select>
         </div>
 
-        <div className="w-full sm:w-auto">
-          <div className="text-xs text-gray-500 mb-1 uppercase tracking-[2px]">Die</div>
+        <div className="w-full sm:w-56">
+          <div className="text-xs text-gray-500 mb-1.5 uppercase tracking-[2px]">Die</div>
           <select
             value={selectedDie}
             onChange={(e) => setSelectedDie(e.target.value)}
-            className="w-full bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-2.5 text-sm text-white outline-none"
+            className="w-full bg-[#121B2B] border border-[#1F2937] rounded-lg px-4 py-3 text-sm text-white outline-none cursor-pointer"
           >
             {dies.map((die) => (
               <option key={die} value={die}>
@@ -709,16 +733,16 @@ export default function CalibrationPage() {
 
       {/* TABLE */}
       <div className="bg-[#121B2B] border border-[#1F2937] rounded-xl overflow-x-auto mb-10">
-        <div className="min-w-[800px] md:min-w-full">
-          {/* Responsive Grid Table Header */}
-          <div className="hidden md:grid grid-cols-12 gap-3 px-6 py-4 border-b border-[#1F2937] text-[11px] uppercase tracking-[2px] text-gray-500 items-center text-center">
-            <div className="text-left col-span-3">Parameter</div>
-            <div className="col-span-1.5">Current Applied</div>
-            <div className="col-span-2">Optimal Range</div>
-            <div className="col-span-1">Std Dev</div>
-            <div className="col-span-2.5">Comparison</div>
-            <div className="col-span-1">Samples</div>
-            <div className="col-span-1">CPK</div>
+        <div className="w-full min-w-[950px]">
+          {/* Custom Fractional Grid Layout applied here */}
+          <div className="hidden md:grid grid-cols-[3fr_1.5fr_2fr_1fr_3.5fr_1fr_1fr] gap-4 px-6 py-4 border-b border-[#1F2937] text-[11px] uppercase tracking-[2px] text-gray-500 items-center text-center w-full">
+            <div className="text-left">Parameter</div>
+            <div>Current Applied</div>
+            <div>Optimal Range</div>
+            <div>Std Dev</div>
+            <div>Comparison</div>
+            <div>Samples</div>
+            <div>CPK</div>
           </div>
 
           {rows.map(([key, value], index) => {
@@ -735,10 +759,10 @@ export default function CalibrationPage() {
             return (
               <div
                 key={index}
-                className="flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-3 px-6 py-5 border-b border-[#182232] items-center text-center hover:bg-[#0D1625] transition-all"
+                className="flex flex-col md:grid md:grid-cols-[3fr_1.5fr_2fr_1fr_3.5fr_1fr_1fr] gap-4 px-6 py-5 border-b border-[#182232] items-center text-center hover:bg-[#0D1625] transition-all w-full"
               >
                 {/* Parameter Block */}
-                <div className="text-left w-full md:col-span-3">
+                <div className="text-left w-full">
                   <div className="text-white text-base font-semibold break-words">{key}</div>
                   <div className="text-gray-500 text-xs mt-1">
                     Tol: {value.min_range.toFixed(2)} - {value.max_range.toFixed(2)} {unit}
@@ -746,7 +770,7 @@ export default function CalibrationPage() {
                 </div>
 
                 {/* Current Applied Column */}
-                <div className="flex justify-between md:justify-center items-center w-full md:col-span-1.5 border-b border-gray-800/40 pb-2 md:pb-0 md:border-none">
+                <div className="flex justify-between md:justify-center items-center w-full border-b border-gray-800/40 pb-2 md:pb-0 md:border-none">
                   <span className="md:hidden text-xs text-gray-500 uppercase tracking-wider">Current Applied</span>
                   <span className="text-cyan-400 font-semibold text-base">
                     {currentValue.toFixed(2)} {unit}
@@ -754,7 +778,7 @@ export default function CalibrationPage() {
                 </div>
 
                 {/* Optimal Range Column */}
-                <div className="flex justify-between md:justify-center items-center w-full md:col-span-2 border-b border-gray-800/40 pb-2 md:pb-0 md:border-none">
+                <div className="flex justify-between md:justify-center items-center w-full border-b border-gray-800/40 pb-2 md:pb-0 md:border-none">
                   <span className="md:hidden text-xs text-gray-500 uppercase tracking-wider">Optimal Range</span>
                   <span className="text-green-400 text-base">
                     {value.min_range.toFixed(2)} - {value.max_range.toFixed(2)} {unit}
@@ -762,24 +786,34 @@ export default function CalibrationPage() {
                 </div>
 
                 {/* Std Dev Column */}
-                <div className="flex justify-between md:justify-center items-center w-full md:col-span-1 border-b border-gray-800/40 pb-2 md:pb-0 md:border-none">
+                <div className="flex justify-between md:justify-center items-center w-full border-b border-gray-800/40 pb-2 md:pb-0 md:border-none">
                   <span className="md:hidden text-xs text-gray-500 uppercase tracking-wider">Std Dev</span>
                   <span className="text-gray-400 text-sm">
                     ±{value.tolerance.toFixed(2)} {unit}
                   </span>
                 </div>
 
-                {/* Comparison Placeholder Column */}
-                <div className="w-full md:col-span-2.5 px-1 text-left flex flex-col justify-center">
-                  <div className="text-xs text-gray-400 flex items-center justify-between bg-[#0B1320] px-3 py-2 rounded-md border border-[#1F2937]">
-                    <span>Initial: {snapshotValue ? `${snapshotValue} ${unit}` : "—"}</span>
-                    <span className="text-gray-500">→</span>
-                    <span className="text-cyan-400 font-medium">Live: {currentValue.toFixed(2)} {unit}</span>
+                {/* Sleek Horizontal Comparison Pill */}
+                <div className="w-full flex justify-center">
+                  <div className="bg-[#0F172A] border border-[#1F2937] rounded-lg px-3 py-2 flex items-center justify-between w-full shadow-inner gap-2">
+                    <div className="flex flex-col items-start w-1/2">
+                      <span className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold">Before</span>
+                      <span className="text-gray-300 text-xs mt-0.5 truncate w-full text-left">
+                        {snapshotValue ? `${snapshotValue} ${unit}` : "—"}
+                      </span>
+                    </div>
+                    <span className="text-cyan-500/50 text-sm flex-shrink-0">→</span>
+                    <div className="flex flex-col items-end w-1/2">
+                      <span className="text-[9px] text-cyan-500 uppercase tracking-wider font-semibold">Current</span>
+                      <span className="text-cyan-400 text-sm font-bold mt-0.5 truncate w-full text-right">
+                        {currentValue.toFixed(2)} {unit}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Samples Column */}
-                <div className="flex justify-between md:justify-center items-center w-full md:col-span-1 border-b border-gray-800/40 pb-2 md:pb-0 md:border-none">
+                <div className="flex justify-between md:justify-center items-center w-full border-b border-gray-800/40 pb-2 md:pb-0 md:border-none">
                   <span className="md:hidden text-xs text-gray-500 uppercase tracking-wider">Samples</span>
                   <span className="text-gray-400 text-sm">
                     {Math.floor(2000 + index * 120).toLocaleString()}
@@ -787,7 +821,7 @@ export default function CalibrationPage() {
                 </div>
 
                 {/* CPK Column */}
-                <div className="flex justify-between md:justify-center items-center w-full md:col-span-1">
+                <div className="flex justify-between md:justify-center items-center w-full">
                   <span className="md:hidden text-xs text-gray-500 uppercase tracking-wider">CPK</span>
                   <div className="bg-green-500/15 text-green-400 text-xs px-3 py-1.5 rounded-md font-semibold min-w-[55px]">
                     {(1.35 + index * 0.09).toFixed(2)}
@@ -879,11 +913,42 @@ export default function CalibrationPage() {
           })}
         </div>
 
-        {/* APPLY BUTTON */}
-        <div className="flex justify-center mt-8 md:mt-10">
+        {/* BUTTON ACTIONS GROUP */}
+        <div className="flex flex-col sm:flex-row justify-end gap-4 mt-8 md:mt-10">
+          <button
+            onClick={updateCalibration}
+            className="
+              bg-[#1F2937]
+              hover:bg-[#374151]
+              text-white
+              font-semibold
+              px-8
+              py-3.5
+              rounded-xl
+              text-base
+              tracking-wide
+              transition-colors
+            "
+          >
+            Update Values
+          </button>
+          
           <button
             onClick={applyCalibration}
-            className="w-full sm:w-auto bg-cyan-500 hover:bg-cyan-400 transition-all text-black font-bold px-12 py-4 rounded-xl text-base md:text-lg tracking-wide uppercase"
+            className="
+              bg-cyan-500
+              hover:bg-cyan-400
+              text-black
+              font-bold
+              px-8
+              py-3.5
+              rounded-xl
+              text-base
+              tracking-wide
+              uppercase
+              transition-colors
+              shadow-[0_0_15px_rgba(34,211,238,0.2)]
+            "
           >
             Apply Calibration
           </button>
@@ -899,5 +964,4 @@ export default function CalibrationPage() {
     </div>
   );
 }
-
 
