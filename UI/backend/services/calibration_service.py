@@ -32,93 +32,65 @@ DB_CONFIG = {
 #     baselines = calibrate_params.main()
 #     return {name: {"baseline": baselines[name][0], "tolerance": baselines[name][1], "min_range": baselines[name][2], "max_range": baselines[name][3]} for name, v in baselines.items()}
 
-# def update_parameters(data):
+def apply_calibration(data):
 
-#     #Assuming the data is same formate to the baseline data given earlier for compute_calibration_ranges
-#     #The data for calibration date will be the same as created_at date, unless already created, then changed to updated_date
-#     conn = psycopg2.connect(**DB_CONFIG)
-#     cur  = conn.cursor()
-#     cur.execute(
-#     "SELECT id_client FROM client WHERE name = %s",
-#     ('Suzuki',)
-#     )
-#     id_client = cur.fetchone()[0]
-#     print(id_client)
+    #Assuming the data is same formate to the baseline data given earlier for compute_calibration_ranges
+    #The data for calibration date will be the same as created_at date, unless already created, then changed to updated_date
+    conn = psycopg2.connect(**DB_CONFIG)
+    cur  = conn.cursor()
+    cur.execute(
+    "SELECT id_client FROM client WHERE name = %s",
+    ('Suzuki',)
+    )
+    id_client = cur.fetchone()[0]
+    print(id_client)
 
 
-#     #Get machine ID to match with 
-#     cur.execute(
-#     "SELECT id_machine FROM machine WHERE id_client = %s",
-#     (id_client,)
-#     )
-#     id_machine = cur.fetchone()[0]
-#     print(id_machine)
+    #Get machine ID to match with 
+    cur.execute(
+    "SELECT id_machine FROM machine WHERE id_client = %s",
+    (id_client,)
+    )
+    id_machine = cur.fetchone()[0]
+    print(id_machine)
 
-#     #Get die ID to match with 
-#     cur.execute(
-#     "SELECT id_die FROM die WHERE id_machine = %s",
-#     (id_machine,)
-#     )
-#     id_die = cur.fetchone()[0]
+    #Get die ID to match with 
+    cur.execute(
+    "SELECT id_die FROM die WHERE id_machine = %s",
+    (id_machine,)
+    )
+    id_die = cur.fetchone()[0]
 
-#     #Add the DieCalibration data
+    #Add the DieCalibration data
     
-#     cur.execute("""
-#                     INSERT INTO die_calibration (id_die, id_client, id_machine, enabled)
-#                     VALUES (%s, %s, %s, %s)
-#                     RETURNING id_calibration
-#             """, (id_die, id_client, id_machine, 'true'))
-#     id_calibration = cur.fetchone()[0]
+    cur.execute("""
+                    INSERT INTO die_calibration (id_die, id_client, id_machine, enabled)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id_calibration
+            """, (id_die, id_client, id_machine, 'true'))
+    id_calibration = cur.fetchone()[0]
 
-#     #Add the individual Param calibration data into Calibration Parameter
-#     for col, v in data.items():
-#         #Types need to be updated
-#         baseline = int( data[col][0])
-#         lower_tolerance = int(data[col][2])
-#         upper_tolerance = int(data[col][3])
-#         cur.execute("""
-#                     INSERT INTO calibration_parameter (id_calibration, id_die, id_client, id_machine, parameter_name, baseline, lower_tolerance, upper_tolerance)
-#                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-#                     RETURNING id_calibration
-#             """, (id_calibration, id_die, id_client, id_machine, col, baseline, lower_tolerance, upper_tolerance))
+    #Add the individual Param calibration data into Calibration Parameter
+    for col, v in data.items():
+        #Types need to be updated
+        baseline = int( data[col][0])
+        lower_tolerance = int(data[col][2])
+        upper_tolerance = int(data[col][3])
+        cur.execute("""
+                    INSERT INTO calibration_parameter (id_calibration, id_die, id_client, id_machine, parameter_name, baseline, lower_tolerance, upper_tolerance)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id_calibration
+            """, (id_calibration, id_die, id_client, id_machine, col, baseline, lower_tolerance, upper_tolerance))
         
-#     conn.commit()
-#     cur.close()
-#     conn.close()
+    conn.commit()
+    cur.close()
+    conn.close()
 
-#     return {
-#         "message": "Parameters updated successfully",
-#         "updated_values": data
-#     }
+    return {
+        "message": "Parameters updated successfully",
+        "updated_values": data
+    }
 
-# def apply_calibration(data):
-
-#     # Adikshit can later save to SQL
-
-#     return {
-#         "message": "Calibration Applied Successfully",
-#         "applied_values": data
-#     }
-
-
-latest_parameters = {
-
-    "pouring_time": 4.52,
-    "shot_forward_time": 2.02,
-    "cooling_time": 13.78,
-    "die_open_core_out_time": 5.31,
-    "ejector_time": 4.91,
-    "extraction_time": 12.92,
-    "spray_time": 14.74,
-
-    "speed_1": 0.29,
-    "speed_2": 0.30,
-    "speed_3": 3.29,
-    "speed_4": 3.36,
-
-    "metal_pressure": 120.00,
-    "metal_temperature": 690.00
-}
 
 
 def get_latest_parameters():
@@ -136,84 +108,33 @@ def get_latest_parameters():
 
     """
     df = pd.read_sql(query, conn)
-    result = {row["parameter_name"]: {"baseline": row["baseline"], "tolerance": 0, "max_range": row["upper_tolerance"], "min_range": row["lower_tolerance"]} for _, row in df.iterrows()}
+    
+    result = {
+        row["parameter_name"]: row["baseline"]
+        for _, row in df.iterrows()
+    }
+    
     conn.commit()
     cur.close()
     conn.close()
     
-    return latest_parameters
+    return result
 
 
-def compute_calibration_ranges():
-    baselines = calibrate_params.main()
-    vals = {name: {"baseline": baselines[name][0], "tolerance": baselines[name][1], "min_range": baselines[name][2], "max_range": baselines[name][3]} for name, v in baselines.items()}
-    return vals
-
-
-def update_parameters(data):
-
-    global latest_parameters
-
-    latest_parameters.update(data)
-
-    return {
-        "message": "Parameters Updated Successfully"
+def compute_calibration_ranges(die):
+    print("starting compute ranges")
+    print(die)
+    baselines, num_samples = calibrate_params.main(die)
+    vals = {
+        name: {
+            "baseline": baselines[name][0], 
+            "tolerance": baselines[name][1], 
+            "min_range": baselines[name][2], 
+            "max_range": baselines[name][3]
+        } 
+        for name, v in baselines.items()
     }
-
-
-def apply_calibration(data):
-
-    global latest_parameters
-
-    latest_parameters.update(data)
-
-    # conn = psycopg2.connect(**DB_CONFIG)
-    # cur  = conn.cursor()
-    # cur.execute(
-    # "SELECT id_client FROM client WHERE name = %s",
-    # ('Suzuki',)
-    # )
-    # id_client = cur.fetchone()[0]
-    # print(id_client)
-
-
-    # #Get machine ID to match with 
-    # cur.execute(
-    # "SELECT id_machine FROM machine WHERE id_client = %s",
-    # (id_client,)
-    # )
-    # id_machine = cur.fetchone()[0]
-    # print(id_machine)
-
-    # #Get die ID to match with 
-    # cur.execute(
-    # "SELECT id_die FROM die WHERE id_machine = %s",
-    # (id_machine,)
-    # )
-    # id_die = cur.fetchone()[0]
-
-    # cur.execute("""
-    #                 INSERT INTO die_calibration (id_die, id_client, id_machine, enabled)
-    #                 VALUES (%s, %s, %s, %s)
-    #                 RETURNING id_calibration
-    #         """, (id_die, id_client, id_machine, 'true'))
-    # id_calibration = cur.fetchone()[0]
-
-    # for col, v in data.items():
-    # #Types need to be updated
-    #     baseline = int( data[col][0])
-    #     lower_tolerance = int(data[col][2])
-    #     upper_tolerance = int(data[col][3])
-    #     cur.execute("""
-    #                 INSERT INTO calibration_parameter (id_calibration, id_die, id_client, id_machine, parameter_name, baseline, lower_tolerance, upper_tolerance)
-    #                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    #                 RETURNING id_calibration
-    #         """, (id_calibration, id_die, id_client, id_machine, col, baseline, lower_tolerance, upper_tolerance))
-        
-    # conn.commit()
-    # cur.close()
-    # conn.close()
-
-    return {
-        "message": "Calibration Applied Successfully"
-    }
+    print(vals.keys())
+    
+    return {"ranges": vals,
+            "samples_analyzed": num_samples}
