@@ -1,116 +1,159 @@
+# import pandas as pd
+# import psycopg2
+# from . import calibrate_params
+
+# DB_CONFIG = {
+#     "host":     "aws-1-ap-southeast-2.pooler.supabase.com",
+#     "dbname":   "postgres",
+#     "user":     "postgres.nnflwohgewhkqqjfvote",
+#     "password": "Datamgnt25!#",
+#     "options":  "-c search_path=rico"
+# }
+
+# def get_latest_parameters(machine: str = None, die: str = None):
+#     conn = psycopg2.connect(**DB_CONFIG)
+#     cur  = conn.cursor()
+
+#     # NOTE: Currently this grabs the absolute latest calibration globally. 
+#     # If you have multiple machines/dies, you should eventually update this SQL 
+#     # to filter by id_machine and id_die!
+#     query = """
+#         SELECT c.parameter_name, c.baseline
+#         FROM calibration_parameter c
+#         WHERE c.id_calibration = (
+#             SELECT id_calibration FROM die_calibration
+#             ORDER BY id_calibration DESC
+#             LIMIT 1
+#         );
+#     """
+#     df = pd.read_sql(query, conn)
+    
+#     # Return a clean dictionary of { "Param Name": baseline_value }
+#     result = {
+#         row["parameter_name"]: row["baseline"]
+#         for _, row in df.iterrows()
+#     }
+    
+#     conn.commit()
+#     cur.close()
+#     conn.close()
+    
+#     return result
+
+
+# def compute_calibration_ranges(die):
+#     print("starting compute ranges")
+#     print(die)
+#     baselines, num_samples = calibrate_params.main(die)
+    
+#     vals = {
+#         name: {
+#             "baseline": baselines[name][0], 
+#             "tolerance": baselines[name][1], 
+#             "min_range": baselines[name][2], 
+#             "max_range": baselines[name][3]
+#         } 
+#         for name, v in baselines.items()
+#     }
+
+#     print(vals.keys())
+#     vals["ACCEL. POINT"]["baseline"] = 0
+#     print(vals["ACCEL. POINT"])
+    
+#     return {
+#         "ranges": vals,
+#         "samples_analyzed": num_samples
+#     }
+
+
+# def apply_calibration(data: dict, die: str = "S14"):
+#     conn = psycopg2.connect(**DB_CONFIG)
+#     cur  = conn.cursor()
+
+#     try:
+#         # 1. Get IDs
+#         cur.execute("SELECT id_client FROM client WHERE name = %s", ('Suzuki',))
+#         id_client = cur.fetchone()[0]
+        
+
+#         # 2. Create the parent calibration record
+#         cur.execute("""
+#             INSERT INTO die_calibration (id_die, id_client, enabled)
+#             VALUES (%s, %s, %s)
+#             RETURNING id_calibration
+#         """, (die, id_client, 'true'))
+#         id_calibration = cur.fetchone()[0]
+
+#         # 3. Fetch the tolerances dynamically based on the current die
+#         ranges_data = compute_calibration_ranges(die)["ranges"]
+
+#         # 4. Insert each parameter
+#         for col, value in data.items():
+#             if col not in ranges_data:
+#                 print(f"Warning: {col} not found in computed ranges. Skipping.")
+#                 continue
+
+#             # Safely cast to float
+#             baseline = float(value)
+#             lower_tolerance = float(ranges_data[col]["min_range"])
+#             upper_tolerance = float(ranges_data[col]["max_range"])
+
+#             cur.execute("""
+#                 INSERT INTO calibration_parameter 
+#                 (id_calibration, id_die, id_client, parameter_name, baseline, lower_tolerance, upper_tolerance)
+#                 VALUES (%s, %s, %s, %s, %s, %s, %s)
+#             """, (id_calibration, die, id_client, col, baseline, lower_tolerance, upper_tolerance))
+            
+#         conn.commit()
+
+#         return {
+#             "message": "Parameters applied successfully",
+#             "updated_values": data
+#         }
+
+#     except Exception as e:
+#         conn.rollback() # Undo the insert if anything crashes
+#         print(f"Database error during apply_calibration: {e}")
+#         raise e
+
+#     finally:
+#         cur.close()
+#         conn.close()
+
 import pandas as pd
-from . import calibrate_params
 import psycopg2
+from . import calibrate_params
+
 DB_CONFIG = {
     "host":     "aws-1-ap-southeast-2.pooler.supabase.com",
     "dbname":   "postgres",
     "user":     "postgres.nnflwohgewhkqqjfvote",
     "password": "Datamgnt25!#",
     "options":  "-c search_path=rico"
-    
 }
 
-# # Temporary Excel source
-# # Later Adikshit can replace with SQL
-
-
-# def get_latest_parameters():
-
-
-#     param_names = ['ACCEL. POINT mm ', 'BISCUIT THICKNESS mm ', 'CLAMP FORCE (%) ', 'CLAMP TONNAGE (T) ', 'CLAMP TONNAGE(HE.LOW) % ', 
-#                    'CLAMP TONNAGE(HE.LOW) MN ', 'CLAMP TONNAGE(HE.UP) % ', 'CLAMP TONNAGE(OP.LOW) % ', 'CLAMP TONNAGE(OP.UP) % ', 
-#                    'COOLING WATER FLOW RATE(MOV.) L/min ', 'COOLING WATER FLOW RATE(STA.) L/min ', 'CURING TIME sec ', 'DEACEL. POINT mm ',
-#                      'DIE OPEN CORE OUT TIME sec ', 'DIE-CLOSE CORE IN TIME sec ', 'EJECTOR TIME sec ', 'EXTRACT TIME sec ', 
-#                      'FIXED DIE TEMP (F-1) C ', 'FIXED DIE TEMP (F-2) C ', 'FURNACE METAL TEMP. C ', 'HIGH SHOT COUNT ', 'INTEN. TIME msec ', 
-#                      'INTENSIFICATION ACC. PRESSURE MPa ', 'JET COOLING PRESSURE kgf/cm2 ', 'METAL PRESS. Mpa ', 'MOVING DIE TEMP (M-1) C ', 'MOVING DIE TEMP (M-2) C ', 'NG COUNTER ', 'POURING TIME sec ', 'SHOT ACC. PRESSURE MPa ', 'SHOT FWD TIME sec ', 'SLIDE TEMP-1 (S-1) C ', 'SPRAY TIME sec ', 'V1 m/sec ', 'V2 m/sec) ', 'V3 m/sec ', 'V4 m/sec ', 'VACUUM PRESSURE mbar ']
-#     dict_parms = {name: 0 for name in param_names}
-#     return dict_parms
-
-
-# def compute_calibration_ranges(): #Input should be machineID and DieID, which is entered by user when opening calibration page
-#     #For the time being no 
-#     baselines = calibrate_params.main()
-#     return {name: {"baseline": baselines[name][0], "tolerance": baselines[name][1], "min_range": baselines[name][2], "max_range": baselines[name][3]} for name, v in baselines.items()}
-
-def apply_calibration(data):
-
-    #Assuming the data is same formate to the baseline data given earlier for compute_calibration_ranges
-    #The data for calibration date will be the same as created_at date, unless already created, then changed to updated_date
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur  = conn.cursor()
-    cur.execute(
-    "SELECT id_client FROM client WHERE name = %s",
-    ('Suzuki',)
-    )
-    id_client = cur.fetchone()[0]
-    print(id_client)
-
-
-    #Get machine ID to match with 
-    cur.execute(
-    "SELECT id_machine FROM machine WHERE id_client = %s",
-    (id_client,)
-    )
-    id_machine = cur.fetchone()[0]
-    print(id_machine)
-
-    #Get die ID to match with 
-    cur.execute(
-    "SELECT id_die FROM die WHERE id_machine = %s",
-    (id_machine,)
-    )
-    id_die = cur.fetchone()[0]
-
-    #Add the DieCalibration data
-    
-    cur.execute("""
-                    INSERT INTO die_calibration (id_die, id_client, id_machine, enabled)
-                    VALUES (%s, %s, %s, %s)
-                    RETURNING id_calibration
-            """, (id_die, id_client, id_machine, 'true'))
-    id_calibration = cur.fetchone()[0]
-
-    #Add the individual Param calibration data into Calibration Parameter
-    for col, v in data.items():
-        #Types need to be updated
-        baseline = int( data[col][0])
-        lower_tolerance = int(data[col][2])
-        upper_tolerance = int(data[col][3])
-        cur.execute("""
-                    INSERT INTO calibration_parameter (id_calibration, id_die, id_client, id_machine, parameter_name, baseline, lower_tolerance, upper_tolerance)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id_calibration
-            """, (id_calibration, id_die, id_client, id_machine, col, baseline, lower_tolerance, upper_tolerance))
-        
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return {
-        "message": "Parameters updated successfully",
-        "updated_values": data
-    }
-
-
-
-def get_latest_parameters():
+def get_latest_parameters(machine: str = None, die: str = None):
     conn = psycopg2.connect(**DB_CONFIG)
     cur  = conn.cursor()
 
+    # NOTE: Currently this grabs the absolute latest calibration globally. 
+    # If you have multiple machines/dies, you should eventually update this SQL 
+    # to filter by id_machine and id_die!
     query = """
-        SELECT c.parameter_name, c.baseline, c.upper_tolerance, c.lower_tolerance
+        SELECT c.parameter_name, c.baseline
         FROM calibration_parameter c
         WHERE c.id_calibration = (
-        SELECT id_calibration FROM die_calibration
-        ORDER BY id_calibration DESC
-        LIMIT 1
-    );
-
+            SELECT id_calibration FROM die_calibration
+            ORDER BY id_calibration DESC
+            LIMIT 1
+        );
     """
     df = pd.read_sql(query, conn)
     
+    # Return a clean dictionary of { "Param Name": baseline_value }
     result = {
-        row["parameter_name"]: row["baseline"]
+       
+        row["parameter_name"]: float(row["baseline"])
         for _, row in df.iterrows()
     }
     
@@ -125,16 +168,82 @@ def compute_calibration_ranges(die):
     print("starting compute ranges")
     print(die)
     baselines, num_samples = calibrate_params.main(die)
+    
     vals = {
         name: {
-            "baseline": baselines[name][0], 
-            "tolerance": baselines[name][1], 
-            "min_range": baselines[name][2], 
-            "max_range": baselines[name][3]
+            # FIX: Wrap everything in float() to strip away NumPy np.float64 types
+            "baseline": float(baselines[name][0]), 
+            "tolerance": float(baselines[name][1]), 
+            "min_range": float(baselines[name][2]), 
+            "max_range": float(baselines[name][3])
         } 
         for name, v in baselines.items()
     }
-    print(vals.keys())
+    # vals["ACCEL. POINT"]["baseline"] = 0
+    print(vals["ACCEL. POINT"])
     
-    return {"ranges": vals,
-            "samples_analyzed": num_samples}
+    return {
+        "ranges": vals,
+        # FIX: Cast num_samples to standard int
+        "samples_analyzed": int(num_samples)
+    }
+
+
+def apply_calibration(data: dict, die: str = "S14"): # FIX: Changed default to S14
+    conn = psycopg2.connect(**DB_CONFIG)
+    cur  = conn.cursor()
+
+    try:
+        # 1. Get IDs
+        cur.execute("SELECT id_client FROM client WHERE name = %s", ('Suzuki',))
+        id_client = cur.fetchone()[0]
+        
+        cur.execute("SELECT id_machine FROM machine WHERE id_client = %s", (id_client,))
+        id_machine = cur.fetchone()[0]
+
+        cur.execute("SELECT id_die FROM die WHERE id_machine = %s", (id_machine,))
+        id_die = cur.fetchone()[0]
+
+        # 2. Create the parent calibration record
+        cur.execute("""
+            INSERT INTO die_calibration (id_die, id_client, id_machine, enabled)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id_calibration
+        """, (id_die, id_client, id_machine, 'true'))
+        id_calibration = cur.fetchone()[0]
+
+        # 3. Fetch the tolerances dynamically based on the current die
+        ranges_data = compute_calibration_ranges(die)["ranges"]
+
+        # 4. Insert each parameter
+        for col, value in data.items():
+            if col not in ranges_data:
+                print(f"Warning: {col} not found in computed ranges. Skipping.")
+                continue
+
+            # Safely cast to float
+            baseline = float(value)
+            lower_tolerance = float(ranges_data[col]["min_range"])
+            upper_tolerance = float(ranges_data[col]["max_range"])
+
+            cur.execute("""
+                INSERT INTO calibration_parameter 
+                (id_calibration, id_die, id_client, id_machine, parameter_name, baseline, lower_tolerance, upper_tolerance)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (id_calibration, id_die, id_client, id_machine, col, baseline, lower_tolerance, upper_tolerance))
+            
+        conn.commit()
+
+        return {
+            "message": "Parameters applied successfully",
+            "updated_values": data
+        }
+
+    except Exception as e:
+        conn.rollback() # Undo the insert if anything crashes
+        print(f"Database error during apply_calibration: {e}")
+        raise e
+
+    finally:
+        cur.close()
+        conn.close()

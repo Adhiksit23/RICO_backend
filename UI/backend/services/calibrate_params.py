@@ -176,6 +176,7 @@ def main(die="S14"):
                 if param not in sub.columns:
                     continue
                 vals = sub[param]
+                num_samples = len(vals)
                 avg = vals.mean()
                 tol = max((vals - avg).abs().mean(), 1e-9)
                 if param in bl_params:
@@ -189,7 +190,7 @@ def main(die="S14"):
                 uom = names_UOM.get(param, ["Unknown", ""])[1]
                 
                 bl_params[param] = (new_avg, new_tol, new_avg - new_tol, new_avg + new_tol, uom)
-                num_samples += 1
+                
         baselines[d] = bl_params
     print(baselines.keys())   
     return [baselines[die], num_samples]

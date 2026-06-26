@@ -158,5 +158,10 @@ def update_calibration(data: ParameterUpdate):
     return update_parameters(data.dict())
 
 @router.post("/apply")
-def apply_new_calibration(data: ParameterUpdate):
-    return apply_calibration(data.dict())
+def apply_new_calibration(
+    data: dict[str, float],  # Accepts any key-value pair of floats
+    machine: str | None = None,
+    die: str | None = "S14"
+):
+    # Notice we don't use .dict() anymore because 'data' is already a dictionary
+    return apply_calibration(data, die)
