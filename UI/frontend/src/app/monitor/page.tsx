@@ -15,7 +15,19 @@ export default function MonitorPage() {
     chipoff: 0
   });
 
+  // useEffect(() => {
+  //   fetch("http://127.0.0.1:8000/api/predictor/predict")
+  //     .then((res) => res.json())
+  //     .then((data) => {
+  //       setPredictionData(data);
+  //     })
+  //     .catch((err) => {
+  //       console.error(err);
+  //     });
+  // }, []);
+
   useEffect(() => {
+  const fetchPredictionData = () => {
     fetch("http://127.0.0.1:8000/api/predictor/predict")
       .then((res) => res.json())
       .then((data) => {
@@ -24,7 +36,16 @@ export default function MonitorPage() {
       .catch((err) => {
         console.error(err);
       });
-  }, []);
+  };
+
+  // Initial fetch
+  fetchPredictionData();
+
+  // Refresh every 5 seconds
+  const interval = setInterval(fetchPredictionData, 60000);
+
+  return () => clearInterval(interval);
+}, []);
 
   const getPredictionStatus = (value: number) => {
   if (value < 10) {
