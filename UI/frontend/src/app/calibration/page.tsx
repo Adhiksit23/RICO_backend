@@ -154,7 +154,8 @@ export default function CalibrationPage() {
   };
 
   const buildPayload = () => {
-    const payload: Record<string, number> = {};
+    //const payload: Record<string, number> = {};
+    const payload: Record<string, RangeData> = {};
     rows.forEach(([key, value]) => {
       const normalizedKey = normalizeKey(key);
       const backendKey = keyMap[normalizedKey] || key;
@@ -164,7 +165,11 @@ export default function CalibrationPage() {
           ? Number(latestParams[normalizedKey])
           : (value?.baseline ?? 0); 
 
-      payload[backendKey] = finalValue;
+      //payload[backendKey] = finalValue;
+      payload[backendKey] = {
+        ...value,
+        baseline: finalValue,
+      };
     });
     return payload;
   };
@@ -176,6 +181,7 @@ export default function CalibrationPage() {
 
     try {
       const payload = buildPayload();
+      console.log(payload)
       const res = await fetch(
         `${base_api}/api/calibration/apply?machine=${encodeURIComponent(selectedMachine)}&die=${encodeURIComponent(selectedDie)}`, 
         {
@@ -185,7 +191,12 @@ export default function CalibrationPage() {
         }
       );
 
-      if (!res.ok) throw new Error("Failed to apply");
+      //if (!res.ok) throw new Error("Failed to apply");
+      if (!res.ok) {
+      const errBody = await res.json();
+      console.error("422 detail:", errBody);  // ← FastAPI returns { detail: [...] }
+      throw new Error(JSON.stringify(errBody));
+      }
 
       const data = await res.json();
       setStatusMessage(data.message || "Calibration Applied Successfully");
@@ -193,7 +204,8 @@ export default function CalibrationPage() {
 
       // Refetch the database to push the newly saved values into the "Before" snapshot
       await fetchDatabaseLatest();
-    } catch {
+    } catch(err) {
+      console.error(err);
       setStatusMessage("Failed to apply calibration");
       setStatusType("error");
     } finally {

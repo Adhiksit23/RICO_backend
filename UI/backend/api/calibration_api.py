@@ -122,6 +122,14 @@ router = APIRouter(
     tags=["Calibration"]
 )
 
+class RangeData (BaseModel):
+    baseline: float
+    tolerance: float
+    min_range: float
+    max_range: float
+    unit: str | None = None
+
+    
 class ParameterUpdate(BaseModel):
     pouring_time: float
     shot_forward_time: float
@@ -151,8 +159,10 @@ def calibration_ranges(
     machine: str | None = None,
     die: str | None = "S14"
 ):
-    print(machine)
-    return compute_calibration_ranges(machine, die)
+    #print(machine)
+    ranges = compute_calibration_ranges(machine, die)
+    #print(ranges)
+    return ranges
 
 @router.post("/update")
 def update_calibration(data: ParameterUpdate):
@@ -160,9 +170,11 @@ def update_calibration(data: ParameterUpdate):
 
 @router.post("/apply")
 def apply_new_calibration(
-    data: dict[str, float],  # Accepts any key-value pair of floats
+    data: dict[str, dict],  # Accepts any key-value pair of floats
     machine: str | None = None,
     die: str | None = "S14"
 ):
+    # print("Test")
+    # print(data)
     # Notice we don't use .dict() anymore because 'data' is already a dictionary
-    return apply_calibration(data, die)
+    return apply_calibration(data, machine, die)

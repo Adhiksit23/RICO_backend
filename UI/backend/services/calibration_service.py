@@ -192,21 +192,16 @@ def compute_calibration_ranges(
     }
 
 
-def apply_calibration(data: dict, die: str):
+def apply_calibration(data: dict, id_machine: str, die: str):
     conn = psycopg2.connect(**DB_CONFIG)
     cur  = conn.cursor()
-
     try:
         # 1. Get IDs
         cur.execute("SELECT id_client FROM client WHERE name = %s", ('Suzuki',))
         id_client = cur.fetchone()[0]
         
-        cur.execute("SELECT id_machine FROM machine WHERE id_client = %s", (id_client,))
-        id_machine = cur.fetchone()[0]
-
-        cur.execute("SELECT id_die FROM die WHERE id_machine = %s", (id_machine,))
-        id_die = cur.fetchone()[0]
-
+        id_die = die
+        
         # 2. Create the parent calibration record
         cur.execute("""
             INSERT INTO die_calibration (id_die, id_client, id_machine, enabled)
@@ -216,18 +211,17 @@ def apply_calibration(data: dict, die: str):
         id_calibration = cur.fetchone()[0]
 
         # 3. Fetch the tolerances dynamically based on the current die
-        ranges_data = compute_calibration_ranges(die)["ranges"]
+        ranges_data = data
 
         # 4. Insert each parameter
-        for col, value in data.items():
+        for col, v in data.items():
             if col not in ranges_data:
                 print(f"Warning: {col} not found in computed ranges. Skipping.")
                 continue
-
             # Safely cast to float
-            baseline = float(value)
-            lower_tolerance = float(ranges_data[col]["min_range"])
-            upper_tolerance = float(ranges_data[col]["max_range"])
+            baseline = v['baseline']
+            lower_tolerance = v['min_range']
+            upper_tolerance = v['max_range']
 
             cur.execute("""
                 INSERT INTO calibration_parameter 
