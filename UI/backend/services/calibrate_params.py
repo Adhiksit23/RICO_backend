@@ -67,14 +67,15 @@ def main(machine_id, die):
     df = df[mask]
     
 
-    groups = {value: group_df.drop(columns=["id_die"]).reset_index(drop=True)
-            for value, group_df in df.groupby("id_die")}
-    print(groups.keys())
-    baselines = {}
+    # groups = {value: group_df.drop(columns=["id_die"]).reset_index(drop=True)
+    #         for value, group_df in df.groupby("id_die")}
+    # print(groups.keys())
+    # baselines = {}
 
 
     bl_params = {}
-    sub = groups[die]
+    # sub = groups[die]
+    sub = df[df["id_die"] == die].drop(columns=["id_die"]).reset_index(drop=True)
     for param in param_names:
         if param not in sub.columns:
             continue
@@ -94,11 +95,9 @@ def main(machine_id, die):
         uom = names_UOM.get(param, ["Unknown", ""])[1]
         
         bl_params[param] = (new_avg, new_tol, new_avg - new_tol, new_avg + new_tol, uom)
-            
-    baselines[die] = bl_params
-    print(baselines.keys())  
+             
     print(num_samples) 
-    return [baselines[die], num_samples]
+    return [bl_params, num_samples]
 
 if __name__ == "__main__":
     main()
