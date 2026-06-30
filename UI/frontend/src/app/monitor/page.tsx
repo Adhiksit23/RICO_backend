@@ -10,6 +10,9 @@ export default function MonitorPage() {
     non_filling: 0,
     blowhole: 0,
     porosity: 0,
+    crack: 0,
+    shrinkage: 0,
+    chipoff: 0
   });
 
   useEffect(() => {
@@ -110,20 +113,20 @@ export default function MonitorPage() {
   {
     label: "Shrinkage",
     subtitle: "Volumetric contraction",
-    value: 23.5,
-    ...getPredictionStatus(23.5),
+    value: predictionData.shrinkage,
+    ...getPredictionStatus(predictionData.shrinkage),
   },
   {
     label: "Chip-off",
     subtitle: "Surface fragment loss",
-    value: 10.1,
-    ...getPredictionStatus(10.1),
+    value: predictionData.chipoff,
+    ...getPredictionStatus(predictionData.chipoff),
   },
   {
     label: "Crack",
     subtitle: "Structural fracture lines",
-    value: 31.2,
-    ...getPredictionStatus(31.2),
+    value: predictionData.crack,
+    ...getPredictionStatus(predictionData.crack),
   },
 ];
   const parameters = [

@@ -30,9 +30,12 @@ def predict():
     #Output is this like: [0.2596754215669358, 0.7615386158702746, 0.6457570238583724, 0.9308658648280802, 0.8079451844474845, 0.14271445010752157]
     # For ["Blow_Hole","Crack","Non_filling","Porosity","Shrinkage","Chipoff"]
     return {
-        "non_filling": 85.4,
-        "blowhole": 9.2,
-        "porosity": 47.4
+        "blowhole": round(prediction[0] * 100, 2),
+        "crack": round(prediction[1] * 100, 2),
+        "non_filling": round(prediction[2] * 100, 2),
+        "porosity": round(prediction[3] * 100, 2),
+        "shrinkage": round(prediction[4] * 100, 2),
+        "chipoff": round(prediction[5] * 100, 2),
     }
 
 @router.get("/monitor")
