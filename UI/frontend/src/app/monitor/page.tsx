@@ -23,51 +23,109 @@ export default function MonitorPage() {
       });
   }, []);
 
-  const predictions = [
-    {
-      label: "Non-filling",
-      subtitle: "Incomplete cavity fill",
-      value: predictionData.non_filling,
-      status: "HIGH",
-      color: "#EF4444",
-    },
-    {
-      label: "Blowhole",
-      subtitle: "Trapped gas cavities",
-      value: predictionData.blowhole,
+  const getPredictionStatus = (value: number) => {
+  if (value < 10) {
+    return {
       status: "LOW",
-      color: "#22C55E",
-    },
-    {
-      label: "Porosity",
-      subtitle: "Micro voids in structure",
-      value: predictionData.porosity,
-      status: "MED",
-      color: "#F59E0B",
-    },
-    {
-      label: "Shrinkage",
-      subtitle: "Volumetric contraction",
-      value: 23.5,
-      status: "LOW",
-      color: "#22C55E",
-    },
-    {
-      label: "Chip-off",
-      subtitle: "Surface fragment loss",
-      value: 10.1,
-      status: "LOW",
-      color: "#22C55E",
-    },
-    {
-      label: "Crack",
-      subtitle: "Structural fracture lines",
-      value: 31.2,
-      status: "MED",
-      color: "#F59E0B",
-    },
-  ];
+      color: "#22C55E", // Green
+    };
+  }
 
+  if (value <= 50) {
+    return {
+      status: "MED",
+      color: "#F59E0B", // Orange
+    };
+  }
+
+  return {
+    status: "HIGH",
+    color: "#EF4444", // Red
+  };
+};
+
+  // const predictions = [
+  //   {
+  //     label: "Non-filling",
+  //     subtitle: "Incomplete cavity fill",
+  //     value: predictionData.non_filling,
+  //     status: "HIGH",
+  //     color: "#EF4444",
+  //   },
+  //   {
+  //     label: "Blowhole",
+  //     subtitle: "Trapped gas cavities",
+  //     value: predictionData.blowhole,
+  //     status: "LOW",
+  //     color: "#22C55E",
+  //   },
+  //   {
+  //     label: "Porosity",
+  //     subtitle: "Micro voids in structure",
+  //     value: predictionData.porosity,
+  //     status: "MED",
+  //     color: "#F59E0B",
+  //   },
+  //   {
+  //     label: "Shrinkage",
+  //     subtitle: "Volumetric contraction",
+  //     value: 23.5,
+  //     status: "LOW",
+  //     color: "#22C55E",
+  //   },
+  //   {
+  //     label: "Chip-off",
+  //     subtitle: "Surface fragment loss",
+  //     value: 10.1,
+  //     status: "LOW",
+  //     color: "#22C55E",
+  //   },
+  //   {
+  //     label: "Crack",
+  //     subtitle: "Structural fracture lines",
+  //     value: 31.2,
+  //     status: "MED",
+  //     color: "#F59E0B",
+  //   },
+  // ];
+  const predictions = [
+  {
+    label: "Non-filling",
+    subtitle: "Incomplete cavity fill",
+    value: predictionData.non_filling,
+    ...getPredictionStatus(predictionData.non_filling),
+  },
+  {
+    label: "Blowhole",
+    subtitle: "Trapped gas cavities",
+    value: predictionData.blowhole,
+    ...getPredictionStatus(predictionData.blowhole),
+  },
+  {
+    label: "Porosity",
+    subtitle: "Micro voids in structure",
+    value: predictionData.porosity,
+    ...getPredictionStatus(predictionData.porosity),
+  },
+  {
+    label: "Shrinkage",
+    subtitle: "Volumetric contraction",
+    value: 23.5,
+    ...getPredictionStatus(23.5),
+  },
+  {
+    label: "Chip-off",
+    subtitle: "Surface fragment loss",
+    value: 10.1,
+    ...getPredictionStatus(10.1),
+  },
+  {
+    label: "Crack",
+    subtitle: "Structural fracture lines",
+    value: 31.2,
+    ...getPredictionStatus(31.2),
+  },
+];
   const parameters = [
     {
       name: "Cooling Time",
