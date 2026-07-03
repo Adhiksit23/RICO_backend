@@ -280,15 +280,15 @@ export default function MonitorPage() {
       setIsUpdating(true);
 
       // 1. Await update and verify HTTP response success before pulling down current state
-      try {
-        const response = await fetch("http://127.0.0.1:8000/api/predictor/update");
+      // try {
+      //   const response = await fetch("http://127.0.0.1:8000/api/predictor/update");
         
-        if (!response.ok) {
-          throw new Error(`Update endpoint returned status: ${response.status}`);
-        }
-      } catch (err) {
-        console.warn("IoT update failed:", err);
-      }
+      //   if (!response.ok) {
+      //     throw new Error(`Update endpoint returned status: ${response.status}`);
+      //   }
+      // } catch (err) {
+      //   console.warn("IoT update failed:", err);
+      // }
 
       // 2. Query UI dashboard telemetry payloads sequentially from backend database
       try {
