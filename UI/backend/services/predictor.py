@@ -195,24 +195,44 @@ def get_latest_calibration(machine: str = None, die: str = None):
     conn = psycopg2.connect(**DB_CONFIG)
     cur  = conn.cursor()
 
-    print(die)
+    #print(die)
     
+    # query = """
+    #         SELECT c.parameter_name, c.baseline, c.upper_tolerance, c.lower_tolerance
+    #         FROM calibration_parameter c
+    #         WHERE c.id_calibration = (
+    #         SELECT id_calibration FROM die_calibration
+    #         WHERE id_die = %s
+    #         ORDER BY id_calibration DESC
+    #         LIMIT 1
+    #     );
+
+    #     """
+
+    # df_baselines = pd.read_sql(query, conn, params=(die,))
+
     query = """
-            SELECT c.parameter_name, c.baseline, c.upper_tolerance, c.lower_tolerance
-            FROM calibration_parameter c
-            WHERE c.id_calibration = (
-            SELECT id_calibration FROM die_calibration
-            WHERE id_die = %s
-            ORDER BY id_calibration DESC
-            LIMIT 1
-        );
+        SELECT c.parameter_name, c.baseline, c.upper_tolerance, c.lower_tolerance
+        FROM calibration_parameter c
+        WHERE c.id_calibration = %s;
 
-        """
+    """
 
-    df_baselines = pd.read_sql(query, conn, params=(die,))
+    df_baselines = pd.read_sql(query, conn, params=(24,))
     
     baselines = df_baselines.set_index('parameter_name').to_dict(orient='index')
+    baselines = {PARAM_MAP[k]:v for k, v in baselines.items()}
     
+    # baselines['V2']['lower_tolerance'] = 0.315
+    # baselines['V2']['upper_tolerance'] = 0.322
+
+    # baselines['V4']['lower_tolerance'] = 3.327
+    # baselines['V4']['upper_tolerance'] = 3.426
+
+    # baselines['V4']['lower_tolerance'] = 3.327
+    # baselines['V4']['upper_tolerance'] = 3.426
+    print(baselines['V2'].keys())
+    print(baselines.keys())
     conn.commit()
     cur.close()
     conn.close()
@@ -226,14 +246,16 @@ def monitor_data():
     query = """
         SELECT c.*
         FROM operating_parameter c
-        WHERE c.id_part = (
-        SELECT id_part FROM part
-        ORDER BY id_part DESC
-        LIMIT 1
-    );
+        WHERE c.id_part = %s;
 
     """
-    df_raw = pd.read_sql(query, conn)
+
+    #  = (
+    #     SELECT id_part FROM part
+    #     ORDER BY id_part DESC
+    #     LIMIT 1
+    # )
+    df_raw = pd.read_sql(query, conn,params=("0610235823728",) )
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
     die_id = df.index.get_level_values("id_die")[0]
@@ -254,22 +276,27 @@ def predictions():
     conn = psycopg2.connect(**DB_CONFIG)
     cur  = conn.cursor()
 
+    #WRONG ORDER!!!
     query = """
         SELECT c.*
         FROM operating_parameter c
-        WHERE c.id_part = (
-        SELECT id_part FROM part
-        ORDER BY id_part DESC
-        LIMIT 1
-    );
+        WHERE c.id_part = %s
+        ;
 
     """
-    df_raw = pd.read_sql(query, conn)
+
+    # SELECT id_part FROM part
+    #     ORDER BY id_part DESC
+    #     LIMIT 1
+    # )
+    df_raw = pd.read_sql(query, conn, params=("0610235823728",))
+    # pd.read_sql(query, conn)
 
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
     die_id = df.index.get_level_values("id_die")[0]
-    print(die_id)
+    id_part = df.index.get_level_values("id_part")[0]
+    print(id_part)
     
     X = pd.DataFrame(index=df.index)
     for target_col in PARAM_COLS:
@@ -283,16 +310,12 @@ def predictions():
     query = """
         SELECT c.parameter_name, c.baseline, c.upper_tolerance, c.lower_tolerance
         FROM calibration_parameter c
-        WHERE c.id_calibration = (
-        SELECT id_calibration FROM die_calibration
-        WHERE id_die = %s
-        ORDER BY id_calibration DESC
-        LIMIT 1
-    );
+        WHERE c.id_calibration = %s;
 
     """
 
-    df_baselines = pd.read_sql(query, conn, params=(die_id,))
+    df_baselines = pd.read_sql(query, conn, params=(24,))
+    
     #Temporary, will be removed after retraining model to so that it uses all parameters rather than having remove conditions
     df_baselines = df_baselines[df_baselines["parameter_name"] != "DIE-CLOSE CORE IN TIME"]
 
@@ -319,7 +342,7 @@ def predictions():
             feats = {}
             #In the baseline data, convert numeric values made earlier into numeric and ignore non numeric
             for col, v in baselines.items():
-                col = PARAM_MAP_BL[col]
+                #col = PARAM_MAP_BL[col]
                 val = pd.to_numeric(row.get(col, np.nan), errors="coerce")
                 avg = v["baseline"]
                 min_r = v["lower_tolerance"]
@@ -340,7 +363,7 @@ def predictions():
         #print(feat_df)
 
     pred_results = []
-
+    # Use latest model for each die, 
     for defect in TARGET_DEFECTS:
         defect_tag   = defect.replace(" ", "_")
         model = pickle.load(open(f'.\models\{defect_tag}_20260605_voting.pkl','rb'))

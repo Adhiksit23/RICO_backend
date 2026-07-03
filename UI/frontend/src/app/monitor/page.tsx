@@ -262,6 +262,21 @@ const parameterMap = [
   { label: "Metal Temperature", key: "FURNACE METAL TEMP.", unit: "°C" },
 ];
 
+
+// const parameterMap = [
+//   { label: "Cooling Time", key: "CURING TIME", unit: "s" },
+//   { label: "Spray Time", key: "SPRAY TIME", unit: "s" },
+//   { label: "Speed 2", key: "V2", unit: "m/s" },
+//   { label: "Speed 4", key: "V4", unit: "m/s" },
+//   { label: "Acc Position", key: "ACCEL. POINT", unit: "mm" },
+//   { label: "Deacc Position", key: "DEACEL. POINT", unit: "mm" },
+//   { label: "Intensification Time", key: "INTEN. TIME", unit: "msec" },
+//   { label: "Metal Pressure", key: "METAL PRESS.", unit: "MPa" },
+//   { label: "Biscuit Thickness", key: "BISCUIT THICKNESS", unit: "mm" },
+//   { label: "Clamp Force", key: "CLAMP FORCE", unit: "%" },
+//   { label: "Metal Temperature", key: "FURNACE METAL TEMP.", unit: "°C" },
+// ];
+
 export default function MonitorPage() {
   const [predictionData, setPredictionData] = useState({
     non_filling: 0,
