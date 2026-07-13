@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import warnings, re, os
 from sklearn.linear_model    import LogisticRegression
-import matplotlib.pyplot as plt
 try:
     from lightgbm import LGBMClassifier
 except: os.system("pip install lightgbm -q"); from lightgbm import LGBMClassifier

@@ -46,13 +46,13 @@ def monitor():
 
 @router.get("/update")
 def update():
-    data_path = update_date_path()
-    print(data_path)
+    # data_path = update_date_path()
+    # print(data_path)
     
-    print("Authenticating...")
-    token = get_auth_token()
-    print(token)
+    # print("Authenticating...")
+    # token = get_auth_token()
+    # print(token)
 
-    print("Fetching data...")
-    get_iot_data(token, data_path)
+    # print("Fetching data...")
+    # get_iot_data(token, data_path)
     return
