@@ -16,7 +16,7 @@ from datetime import date, timedelta
 import requests
 from .data_processing import process_data
 
-BASE_URL = "http://192.168.100.137:9090/api/v1"
+BASE_URL = "http://192.168.100.136:9090/api/v1"
 AUTH_PATH = "/auth/login"
  
 USERNAME = "sanjeev"
@@ -151,11 +151,11 @@ def update_date_path() -> str:
     last_date = cur.fetchone()[0]
     # Fall back to a default if the table is empty
    
-    date_from = date.today().strftime("%Y-%m-%d")
-    date_to = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+    # date_from = date.today().strftime("%Y-%m-%d")
+    # date_to = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # date_from = "2026-06-25"
-    # date_to = "2026-06-27"
+    date_from = "2026-07-09T00:00:00"
+    date_to = "2026-07-09T06:00:00"
     data_path = f"/reports/report/data?dateFrom={date_from}&dateTo={date_to}"
     return data_path
 
@@ -184,10 +184,16 @@ def get_iot_data(token: str, data_path):
     resp = requests.get(url, headers=headers, timeout=15)
     resp.raise_for_status()
     data = resp.json()
-    if len(data['rows']) != 0:
-        last_record = data['rows'][0]
-        process_data(last_record)
-    
+    # if len(data['rows']) != 0:
+    #     last_record = data['rows'][0]
+    #     process_data(last_record)
+    row_index = next(i for i, row in enumerate(data['rows']) if row['part_id'] == '0709043124091')
+    if row_index is None:
+    # handle missing part_id — raise a clear error instead of crashing
+        raise ValueError(f"part_id 'xxx' not found in data['rows']")
+    row = data['rows'][row_index]
+    print(row['reason']) 
+    process_data(row)
     return
 
 

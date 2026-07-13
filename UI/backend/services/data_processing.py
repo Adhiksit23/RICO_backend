@@ -68,14 +68,19 @@ PARAM_MAP = {
 DIE_LIST = ["S14", "S16", "S17"]
 
 def store_defect(cur, row, id_client):
-    defect = row['reason']
+    defect = row['rejection_reason']
+    category = row['rejectionCategory']
+    zone_sub_zone = row['rejection_zone']
+    zone = zone_sub_zone[0]
+    sub_zone = zone_sub_zone.split("Sub Zone ")[-1]
+    view = row['rejectionView']
     part_id = row['part_id']
     id_die = row['plcReading']['part_name'][-3:]
     id_machine = row['plcReading']['machine_name']
     cur.execute("""
-            INSERT INTO part_quality (id_part, id_die, id_client, id_machine, defect_type)
-            VALUES (%s, %s, %s, %s, %s)
-    """, (part_id, id_die, id_client, id_machine, defect))
+            INSERT INTO part_quality (id_part, id_die, id_client, category, zone, sub_zone, view, id_machine, defect_type)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (part_id, id_die, id_client, category, zone, sub_zone, view, id_machine, defect))
 
 def update_date_path() -> str:
     #Connect to database
@@ -92,10 +97,31 @@ def update_date_path() -> str:
 
     date_to = date.today().strftime("%Y-%m-%d")
 
-    data_path = f"/reports/report/data?dateFrom={date_from}&dateTo={date_to}"
+    data_path = f"{{BASE_URL}}/reports/report/data?dateFrom={{date_from}}&dateTo={{date_to}}"
     return data_path
 
 def process_data(data):
+       
+    if(data['plcReading'] == None):
+        #0606125120955
+        return
+
+    #Start Enterring Data
+
+    part_id = data['part_id']
+    client_code = "R437111511"
+    print(part_id)
+    if(client_code in part_id):
+        print("Shot data missing, getting part data from client")
+        return
+    
+    id_machine = data['plcReading']['machine_name']
+    id_die = data['plcReading']['part_name'][-3:]
+    if id_die not in DIE_LIST:
+        return
+    print(id_die)
+    date = data['plcReading']['shot_date']
+
     #Connect to database
     conn = psycopg2.connect(**DB_CONFIG)
     cur  = conn.cursor()
@@ -106,23 +132,6 @@ def process_data(data):
     )
     id_client = cur.fetchone()[0]
 
-    #This needs to be checked for defects and adding data for that
-       
-    if(data['plcReading'] == None):
-        #0606125120955
-        return
-
-    #Start Enterring Data
-
-    part_id = data['part_id']
-    print(part_id)
-    
-    id_machine = data['plcReading']['machine_name']
-    id_die = data['plcReading']['part_name'][-3:]
-    if id_die not in DIE_LIST:
-        return
-    print(id_die)
-    date = data['plcReading']['shot_date']
     cur.execute("""
         INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at)
         VALUES (%s, %s, %s, %s, %s, %s)
