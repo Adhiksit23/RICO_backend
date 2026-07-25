@@ -170,7 +170,25 @@ def process_data(data):
         print(data['reason'])
         store_defect(cur, data, id_client)
 
-    #conn.commit()
+    conn.commit()
     cur.close()
     conn.close()
+    return
+
+def store_quality_pred(predictions, part, TARGET_DEFECTS, cur):
+    # df = part.pivot(index=["id_part"], columns="id_die, id_machine, id_client")
+    # df.columns = df.columns.str.strip()
+    id_part = part["id_part"].iloc[0]
+    print(id_part)
+    id_die = part["id_die"].iloc[0]
+    id_machine = part["id_machine"].iloc[0]
+    id_client = part["id_client"].iloc[0]
+    for i in range(len(TARGET_DEFECTS)): 
+        cur.execute("""
+                INSERT INTO part_quality_prediction (id_part, id_die, id_client, id_machine, defect_type, defect_probability, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id_part, defect_type) DO UPDATE SET
+                    defect_probability = EXCLUDED.defect_probability,
+                    updated_at = EXCLUDED.updated_at
+        """, (id_part, id_die, int(id_client), id_machine, TARGET_DEFECTS[i], predictions[i], datetime.now(), datetime.now()))
     return
