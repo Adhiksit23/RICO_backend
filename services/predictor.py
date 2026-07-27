@@ -13,7 +13,7 @@ import psycopg2
 import pickle
 from datetime import date, timedelta, timezone
 import requests
-from .data_processing import process_data
+from .data_processing import process_data, store_quality_pred
 import os
 
 BASE_URL = "http://192.168.100.136:9090/api/v1"
@@ -118,30 +118,6 @@ DB_CONFIG = {
     
 }
 
-IOT_NAMES_UOM = {'accel_point': ['ACCEL. POINT', 'mm'], 
-             'biscuit_thickness': ['BISCUIT THICKNESS', 'mm'], 
-             'clamp_force_pct': ['CLAMP FORCE', '%'], 
-            'clamp_tonnage': ['CLAMP TONNAGE', 'Mn'], 
-            'curing_time': ['CURING TIME', 'sec'], 
-            'deaccel_point': ['DEACEL. POINT',  'mm'], 
-            'die_open_core_out_time': ['DIE OPEN CORE OUT TIME', 'sec'], 
-            'die_close_core_in_time': ['DIE-CLOSE CORE IN TIME', 'sec'], 
-            'ejector_time': ['EJECTOR TIME', 'sec'],
-            'extract_time': ['EXTRACT TIME', 'sec'],  
-            'furnace_metal_temp': ['FURNACE METAL TEMP.', 'C'], 
-            'intensification_time': ['INTEN. TIME', 'msec'], 
-            'intensification_acc_pressure': ['INTENSIFICATION ACC. PRESSURE', 'mPa'], 
-            'metal_pressure': ['METAL PRESS.', 'Mpa'],
-            'pouring_time': ['POURING TIME', 'sec'], 
-            'shot_acc_pressure': ['SHOT ACC. PRESSURE', 'MPa'], 
-            'shot_fwd_time': ['SHOT FWD TIME', 'sec'], 
-            'spray_time': ['SPRAY TIME', 'sec'], 
-            'v1_speed': ['V1', 'm/sec'], 
-            'v2_speed': ['V2', 'm/sec'], 
-            'v3_speed': ['V3', 'm/sec'], 
-            'v4_speed': ['V4', 'm/sec'], 
-            "cycle_time": ["cycletime value (sec)", "sec"]}
-
 def update_date_path() -> str:
     #Connect to database
     # Fall back to a default if the table is empty
@@ -204,7 +180,6 @@ def get_latest_calibration(machine: str = None, die: str = None):
     #baselines = {PARAM_MAP_BL[k]:v for k, v in baselines.items()}
     baselines = {k:v for k, v in baselines.items()}
     
-    #print(baselines['V2'].keys())
     #print(baselines.keys())
     conn.commit()
     cur.close()
@@ -229,7 +204,7 @@ def monitor_data(die):
     """
 
     df_raw = pd.read_sql(query, conn, params=(die,))
-    print(df_raw == None)
+    #print(df_raw)
     timestamp = df_raw["created_at"].iloc[0]  
     ist = timezone(timedelta(hours=5, minutes=30))
     formatted = timestamp.tz_convert(ist).strftime("%Y-%m-%dT%H:%M:%S")
@@ -249,7 +224,6 @@ def monitor_data(die):
     last_params = {PARAM_MAP[d]:v for d , v in parameters.items()}
     last_params["part_id"] = part_id
     last_params["timestamp"] = formatted
-    # last_params["verdict"] = "REJECT"
     print(last_params)
     return [last_params, die_id]
 
@@ -272,11 +246,8 @@ def predictions(die):
     """
 
     df_raw = pd.read_sql(query, conn, params=(die,))
-
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
-    die_id = df.index.get_level_values("id_die")[0]
-    print(die == die_id)
     id_part = df.index.get_level_values("id_part")[0]
     print(id_part)
     
@@ -284,10 +255,6 @@ def predictions(die):
     for target_col in PARAM_COLS:
         source_col = PARAM_MAP[target_col]
         X[target_col] = df[source_col]
-
-    # print("Param Names DB")
-    # param_names = [col for col in X.columns if col not in ["id_part", "id_die"]]
-    # print(param_names)
 
     query = """
         SELECT c.parameter_name, c.baseline, c.upper_tolerance, c.lower_tolerance
@@ -303,26 +270,15 @@ def predictions(die):
 
     baselines = df_baselines.set_index('parameter_name').to_dict(orient='index')
     
-
-  
-    # print("Printing Baseline Keys:")
-    # print(baselines.keys())
     feat_datasets = {}   # defect → feature DataFrame
 
     def safe_cn(col):
         return re.sub(r"[^a-zA-Z0-9]","_",str(col)).strip("_").replace("__","_")
 
     for defect in TARGET_DEFECTS:
-        #Get the baselines for not producing defect
-    # defect = 'Blow Hole'
-        # print(bl_die)
         feat_rows = []
-
-        for (part_id, die_id), row in X.iterrows():
-            #For each row of data, get the die number and baselines of the die
-            die = die_id
+        for (_, _), row in X.iterrows():
             feats = {}
-            #In the baseline data, convert numeric values made earlier into numeric and ignore non numeric
             for col, v in baselines.items():
                 col = PARAM_MAP_BL[col]
                 val = pd.to_numeric(row.get(col, np.nan), errors="coerce")
@@ -330,19 +286,13 @@ def predictions(die):
                 min_r = v["lower_tolerance"]
                 max_r = v["upper_tolerance"]
                 cn  = safe_cn(col)
-                # print(cn)
                 #If value in range and within percetange deviation
                 feats[f"{cn}_inrange"] = int(min_r <= val <= max_r)
                 pct = (val - avg) / avg if avg != 0 else 0.0
-                #print(float(np.clip(pct, -0.30, 0.30)))
                 feats[f"{cn}_pctdev"] = float(np.clip(pct, -0.30, 0.30))
             feat_rows.append(feats)
         feat_df = pd.DataFrame(feat_rows, index=df.index)
-        # feat_df["Die_No"] = 'S-14'
-        # feat_df[defect]   = defect
         feat_datasets[defect] = feat_df
-        #print(f"  ✓ {defect:15}: {feat_df.shape}")
-        #print(feat_df)
 
     pred_results = []
     print("Going to model")
@@ -351,17 +301,53 @@ def predictions(die):
         defect_tag   = defect.replace(" ", "_")
         model_path = os.path.join('.', 'models', f'{defect_tag}_20260605_voting.pkl')
         model = pickle.load(open(model_path, 'rb'))
-        #model = pickle.load(open(f'.\models\{defect_tag}_20260605_voting.pkl','rb'))
-        #print(model.keys())
-        #print("Expected by model:", model['scaler'].feature_names_in_.tolist())
-        #print("Received in input:", feat_datasets[defect].columns.tolist())
         df_input = feat_datasets[defect][model['scaler'].feature_names_in_]
         X_scaled = model['scaler'].transform(df_input)
         X_pca    = model['pca'].transform(X_scaled)
         X_cca    = model['cca'].transform(X_pca)
         prob     = model['model'].predict_proba(X_cca)[:,1]
         pred_results.append(prob)
-        pred     = (prob >= model['threshold']).astype(int)
 
     predictions = [float(p[0]) for p in pred_results]
+    store_quality_pred(predictions, df_raw, TARGET_DEFECTS, cur)
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+
     return predictions
+
+
+def last_predictions(die, N):
+    conn = psycopg2.connect(**DB_CONFIG)
+    cur  = conn.cursor()
+
+    query = """
+        SELECT c.*
+        FROM part_quality_prediction c
+        WHERE c.id_part IN (
+        SELECT id_part FROM part
+        WHERE id_die = %s
+        ORDER BY created_at DESC
+        LIMIT %s
+    );
+
+    """
+    df_raw = pd.read_sql(query, conn, params=(die, N))
+    result = {}
+
+    for _, row in df_raw.iterrows():
+        id_part = row["id_part"]
+        defect_type = row["defect_type"]
+        probability = row["defect_probability"]
+
+        if id_part not in result:
+            result[id_part] = {}
+
+        result[id_part][defect_type] = probability
+
+    cur.close()
+    conn.close()
+    
+    print(result)
+    return result
