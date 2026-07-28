@@ -14,35 +14,24 @@ def get_latest_parameters(machine: str = None, die: str = None):
     conn = psycopg2.connect(**DB_CONFIG)
     cur  = conn.cursor()
 
-    print(die)
-    df_check = pd.read_sql("SELECT * FROM die_calibration", conn)
-    #print(df_check)
+    # print(die)
+    # print(machine)
     query = """
         SELECT c.*
         FROM calibration_parameter c
         WHERE c.id_calibration = (
             SELECT id_calibration FROM die_calibration
-            WHERE id_die = %s
+            WHERE id_die = %s and id_machine = %s
             ORDER BY id_calibration DESC
             LIMIT 1
         );
     """
 
-    df = pd.read_sql(query, conn, params=(die,))
+    df = pd.read_sql(query, conn, params=(die, machine))
     
-    # query = """
-    #     SELECT c.parameter_name, c.baseline, c.upper_tolerance, c.lower_tolerance
-    #     FROM calibration_parameter c
-    #     WHERE c.id_calibration = %s;
-
-    # """
-
-    # df = pd.read_sql(query, conn, params=(24,))
-
-    conn.commit()
     cur.close()
     conn.close()
-    #print(df)
+    # print(df)
     # Return a clean dictionary of { "Param Name": baseline_value }
     result = {
         row["parameter_name"]: {
@@ -53,9 +42,6 @@ def get_latest_parameters(machine: str = None, die: str = None):
         } for _, row in df.iterrows()
     }
     
-    #print(result)
-   
-    
     return result
 
 
@@ -63,13 +49,10 @@ def compute_calibration_ranges(
     machine: str | None = None,
     die: str | None = "S14"
     ):
-    # print("starting compute ranges")
-    # print(die)
     baselines, num_samples = calibrate_params.main(machine, die = die)
     
     vals = {
         name: {
-            # FIX: Wrap everything in float() to strip away NumPy np.float64 types
             "baseline": float(baselines[name][0]), 
             "tolerance": float(baselines[name][1]), 
             "min_range": float(baselines[name][2]), 
@@ -77,12 +60,9 @@ def compute_calibration_ranges(
         } 
         for name, v in baselines.items()
     }
-    # vals["ACCEL. POINT"]["baseline"] = 0
-    #print(vals["ACCEL. POINT"])
     
     return {
         "ranges": vals,
-        # FIX: Cast num_samples to standard int
         "samples_analyzed": int(num_samples)
     }
 

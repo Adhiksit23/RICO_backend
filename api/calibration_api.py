@@ -43,7 +43,7 @@ def latest_parameters(
     machine: str | None = None,
     die: str | None = None
 ):
-    return get_latest_parameters(die = die)
+    return get_latest_parameters(machine = machine, die = die)
 
 @router.get("/ranges")
 def calibration_ranges(
