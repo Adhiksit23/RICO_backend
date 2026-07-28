@@ -19,55 +19,42 @@ def get_latest_parameters(machine: str = None, die: str = None):
         conn = psycopg2.connect(**DB_CONFIG)
         cur  = conn.cursor()
 
-    # print(die)
-    # print(machine)
-    query = """
-        SELECT c.*
-        FROM calibration_parameter c
-        WHERE c.id_calibration = (
-            SELECT id_calibration FROM die_calibration
-            WHERE id_die = %s and id_machine = %s
-            ORDER BY id_calibration DESC
-            LIMIT 1
-        );
-    """
-
-        df = pd.read_sql(query, conn, params=(die,))
-        conn.commit()
+        # print(die)
+        # print(machine)
+        query = """
+            SELECT c.*
+            FROM calibration_parameter c
+            WHERE c.id_calibration = (
+                SELECT id_calibration FROM die_calibration
+                WHERE id_die = %s and id_machine = %s
+                ORDER BY id_calibration DESC
+                LIMIT 1
+            );
+        """
+        df = pd.read_sql(query, conn, params=(die, machine))
+            
         cur.close()
-
+        conn.close()
+        # print(df)
+        # Return a clean dictionary of { "Param Name": baseline_value }
         result = {
             row["parameter_name"]: {
-                "baseline":  float(row["baseline"]),
-                "min_range": float(row["lower_tolerance"]),
-                "max_range": float(row["upper_tolerance"]),
-            }
-            for _, row in df.iterrows()
+            
+            "baseline": float(row["baseline"]),
+            "min_range": float(row["lower_tolerance"]),
+            "max_range": float(row["upper_tolerance"])
+            } for _, row in df.iterrows()
         }
-        return result
-
+    
     except Exception as exc:
         logger.exception("get_latest_parameters failed for die=%s", die)
         raise
     finally:
         if conn:
             conn.close()
-    df = pd.read_sql(query, conn, params=(die, machine))
-    
-    cur.close()
-    conn.close()
-    # print(df)
-    # Return a clean dictionary of { "Param Name": baseline_value }
-    result = {
-        row["parameter_name"]: {
-       
-        "baseline": float(row["baseline"]),
-        "min_range": float(row["lower_tolerance"]),
-        "max_range": float(row["upper_tolerance"])
-        } for _, row in df.iterrows()
-    }
-    
+
     return result
+   
 
 
 def compute_calibration_ranges(
@@ -90,7 +77,9 @@ def compute_calibration_ranges(
         }
         for name in baselines
     }
-
+    # vals["ACCEL. POINT"]["baseline"] = 0
+    #print(vals["ACCEL. POINT"])
+    
     return {
         "ranges": vals,
         # Cast num_samples to standard int
