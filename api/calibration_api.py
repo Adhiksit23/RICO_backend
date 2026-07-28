@@ -59,7 +59,7 @@ def latest_parameters(
             detail="Query parameter 'die' is required (e.g. ?die=S14).",
         )
     try:
-        result = get_latest_parameters(die=die)
+        result = get_latest_parameters(machine = machine, die=die)
     except HTTPException:
         raise  # re-raise already-formatted errors
     except Exception as exc:
