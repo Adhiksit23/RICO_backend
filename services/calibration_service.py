@@ -19,16 +19,18 @@ def get_latest_parameters(machine: str = None, die: str = None):
         conn = psycopg2.connect(**DB_CONFIG)
         cur  = conn.cursor()
 
-        query = """
-            SELECT c.*
-            FROM calibration_parameter c
-            WHERE c.id_calibration = (
-                SELECT id_calibration FROM die_calibration
-                WHERE id_die = %s
-                ORDER BY id_calibration DESC
-                LIMIT 1
-            );
-        """
+    # print(die)
+    # print(machine)
+    query = """
+        SELECT c.*
+        FROM calibration_parameter c
+        WHERE c.id_calibration = (
+            SELECT id_calibration FROM die_calibration
+            WHERE id_die = %s and id_machine = %s
+            ORDER BY id_calibration DESC
+            LIMIT 1
+        );
+    """
 
         df = pd.read_sql(query, conn, params=(die,))
         conn.commit()
@@ -50,6 +52,22 @@ def get_latest_parameters(machine: str = None, die: str = None):
     finally:
         if conn:
             conn.close()
+    df = pd.read_sql(query, conn, params=(die, machine))
+    
+    cur.close()
+    conn.close()
+    # print(df)
+    # Return a clean dictionary of { "Param Name": baseline_value }
+    result = {
+        row["parameter_name"]: {
+       
+        "baseline": float(row["baseline"]),
+        "min_range": float(row["lower_tolerance"]),
+        "max_range": float(row["upper_tolerance"])
+        } for _, row in df.iterrows()
+    }
+    
+    return result
 
 
 def compute_calibration_ranges(
