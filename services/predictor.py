@@ -118,6 +118,12 @@ DB_CONFIG = {
     
 }
 
+SHIFT_CODE = "ALL"
+LINE_NAME = "OIL PAN K-12"
+PART_NAME = "OPK12"
+DIE_CASTING_MACHINE = "UBE 850 T - 02"
+PAGE = "1"
+PAGE_SIZE = "50"
 def update_date_path() -> str:
     #Connect to database
     # Fall back to a default if the table is empty
@@ -127,7 +133,7 @@ def update_date_path() -> str:
 
     # date_from = "2026-07-16T00:00:00"
     # date_to = "2026-07-16T12:00:00"
-    data_path = f"/reports/report/data?dateFrom={date_from}&dateTo={date_to}"
+    data_path = f"/reports/report/data?dateFrom={date_from}&dateTo={date_to}&shiftCode={SHIFT_CODE}&lineName={LINE_NAME}&partName={PART_NAME}&dieCastingMachine={DIE_CASTING_MACHINE}&page={PAGE}&pageSize={PAGE_SIZE}&clean=1&full=1&fast=false&includePlcReadings=1&includeLeaktest=1&includePlcSummary=1&noCache=1"
     return data_path
 
 def get_auth_token() -> str:
@@ -151,13 +157,17 @@ def get_iot_data(token: str, data_path):
     """Step 2: GET the data endpoint using the token from step 1."""
     url = f"{BASE_URL}{data_path}"
     headers = {"Authorization": f"Bearer {token}"}
- 
-    resp = requests.get(url, headers=headers, timeout=20)
+    print(data_path)
+    resp = requests.get(url, headers=headers, timeout=40)
+    time_taken = resp.elapsed.total_seconds()
+    print(f"Time taken: {time_taken} seconds")
     resp.raise_for_status()
     data = resp.json()
-    if len(data['rows']) != 0:
-        print(len(data['rows']))
-        last_record = data['rows'][0]
+    #print(data)
+    if len(data['records']) != 0:
+        print(len(data['records']))
+        last_record = data['records'][0]
+        print(last_record)
         process_data(last_record)
     
     return
@@ -224,7 +234,7 @@ def monitor_data(die):
     last_params = {PARAM_MAP[d]:v for d , v in parameters.items()}
     last_params["part_id"] = part_id
     last_params["timestamp"] = formatted
-    print(last_params)
+    #print(last_params)
     return [last_params, die_id]
 
 def predictions(die):

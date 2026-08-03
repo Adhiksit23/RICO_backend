@@ -84,9 +84,9 @@ def update():
     Currently disabled — returns status message.
     """
     # Uncomment below when IoT integration is re-enabled:
-    # data_path = update_date_path()
-    # token = get_auth_token()
-    # get_iot_data(token, data_path)
+    data_path = update_date_path()
+    token = get_auth_token()
+    get_iot_data(token, data_path)
     return {"status": "update endpoint is currently disabled"}
 
 
