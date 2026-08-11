@@ -19,6 +19,13 @@ from services.predictor import (
 )
 
 
+from services.shot_update import (
+    update_date_path_shot,
+    get_auth_token_shot,
+    get_iot_data_shot,
+)
+
+
 @router.get("/predict")
 def predict(die: str):
     """
@@ -87,6 +94,19 @@ def update():
     data_path = update_date_path()
     token = get_auth_token()
     get_iot_data(token, data_path)
+    return {"status": "update endpoint is currently disabled"}
+
+
+@router.get("/update_IOT")
+def update_IOT():
+    """
+    Trigger a manual IoT data fetch and update cycle.d
+    Currently disabled — returns status message.
+    """
+    # Uncomment below when IoT integration is re-enabled:
+    data_path = update_date_path_shot()
+    token = get_auth_token_shot()
+    get_iot_data_shot(token, data_path)
     return {"status": "update endpoint is currently disabled"}
 
 

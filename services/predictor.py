@@ -124,6 +124,7 @@ PART_NAME = "OPK12"
 DIE_CASTING_MACHINE = "UBE 850 T - 02"
 PAGE = "1"
 PAGE_SIZE = "50"
+
 def update_date_path() -> str:
     #Connect to database
     # Fall back to a default if the table is empty
@@ -135,6 +136,8 @@ def update_date_path() -> str:
     # date_to = "2026-07-16T12:00:00"
     data_path = f"/reports/report/data?dateFrom={date_from}&dateTo={date_to}&shiftCode={SHIFT_CODE}&lineName={LINE_NAME}&partName={PART_NAME}&dieCastingMachine={DIE_CASTING_MACHINE}&page={PAGE}&pageSize={PAGE_SIZE}&clean=1&full=1&fast=false&includePlcReadings=1&includeLeaktest=1&includePlcSummary=1&noCache=1"
     return data_path
+
+
 
 def get_auth_token() -> str:
     """Step 1: POST credentials, pull the token out of the JSON response."""
@@ -259,7 +262,7 @@ def predictions(die):
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
     id_part = df.index.get_level_values("id_part")[0]
-    print(id_part)
+    #print(id_part)
     
     X = pd.DataFrame(index=df.index)
     for target_col in PARAM_COLS:
@@ -305,7 +308,7 @@ def predictions(die):
         feat_datasets[defect] = feat_df
 
     pred_results = []
-    print("Going to model")
+    #print("Going to model")
     # Use latest model for each die, 
     for defect in TARGET_DEFECTS:
         defect_tag   = defect.replace(" ", "_")
