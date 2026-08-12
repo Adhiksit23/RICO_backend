@@ -1,9 +1,6 @@
 import psycopg2
-import pickle
-from datetime import date, timedelta, timezone
+from datetime import datetime, date, timedelta, timezone
 import requests
-from .data_processing import process_data, store_quality_pred
-import os
 
 BASE_URL = "http://192.168.100.136:9090/api"
 AUTH_PATH = "/auth/login"
@@ -31,6 +28,58 @@ PAGE = "1"
 SHOT_RESULT = "ALL"
 PAGE_SIZE = "200"
 IP = "192.168.117.201"
+
+
+names_UOM = {'accel_point': ['ACCEL. POINT', 'mm'], 
+             'biscuit_thickness': ['BISCUIT THICKNESS', 'mm'], 
+             'clamp_force_pct': ['CLAMP FORCE', '%'], 
+            'clamp_tonnage': ['CLAMP TONNAGE', 'Mn'], 
+            'curing_time': ['CURING TIME', 'sec'], 
+            'deaccel_point': ['DEACEL. POINT',  'mm'], 
+            'die_open_core_out_time': ['DIE OPEN CORE OUT TIME', 'sec'], 
+            'die_close_core_in_time': ['DIE-CLOSE CORE IN TIME', 'sec'], 
+            'ejector_time': ['EJECTOR TIME', 'sec'],
+            'extract_time': ['EXTRACT TIME', 'sec'],  
+            'furnace_metal_temp': ['FURNACE METAL TEMP.', 'C'], 
+            'intensification_time': ['INTEN. TIME', 'msec'], 
+            'intensification_acc_pressure': ['INTENSIFICATION ACC. PRESSURE', 'mPa'], 
+            'metal_pressure': ['METAL PRESS.', 'mPa'],
+            'pouring_time': ['POURING TIME', 'sec'], 
+            'shot_acc_pressure': ['SHOT ACC. PRESSURE', 'Mpa'], 
+            'shot_fwd_time': ['SHOT FWD TIME', 'sec'], 
+            'spray_time': ['SPRAY TIME', 'sec'], 
+            'v1_speed': ['V1', 'm/sec'], 
+            'v2_speed': ['V2', 'm/sec'], 
+            'v3_speed': ['V3', 'm/sec'], 
+            'v4_speed': ['V4', 'm/sec'], 
+            "cycle_time": ["cycletime value (sec)", "sec"]}
+
+
+PARAM_MAP = {
+    "cycle_time": "cycletime value (sec)",
+    "die_close_core_in_time": "DIE CLOSE/CORE IN Parameter (sec)value",
+    "pouring_time":"POURING-step value (sec)",
+    "shot_fwd_time": "SHOT FWD-step value (sec)",
+    "curing_time": "COOLING-step value (sec)",
+    "die_open_core_out_time": "DIE OPEN/CORE OUT-step value (sec)",
+    "ejector_time": "EJECTOR-step value (sec)",
+    "extract_time": "EXTRACTOR-step value (sec)",
+    "spray_time": "SPRAY-step value (sec)",
+    "v1_speed": "SPEED 1 (m/sec)value",
+    "v2_speed": "SPEED 2 (m/sec)value",
+    "v3_speed": "SPEED 3 (m/sec)value",
+    "v4_speed": "SPEED 4(m/sec)value",
+    "accel_point": "ACC POSITION 1(mm)value",
+    "deaccel_point": "DEACC POSITION 1(mm)value",
+    "intensification_time": "INTESIFICAITON TIME(msec)value",
+    "metal_pressure": "METAL PRESSURE(Mpa)value",
+    "biscuit_thickness": "BISCUIT THICKNESS(mm)value",
+    "clamp_force_pct": "CLAMP FORCE(%)value",
+    "clamp_tonnage": "CLAMP TONNAGE(MN)value",
+    "shot_acc_pressure": "SHOT ACC. PRESSURE value",
+    "intensification_acc_pressure": "INTESIFICAITON ACC. PRESSUREvalue",
+    "furnace_metal_temp": "METAL TEMP.value",
+}
 
 def update_date_path_shot() -> str:
     #Connect to database
@@ -90,20 +139,21 @@ def date_processing(date):
 
 
 def process_data_shot(data):
- 
-    part_id = data['shot_month'] + data['shot_day'] + data['shot_hour'] + data['shot_minute'] + data['machine_name'][-1:] + str(data['shot_number'])
-    print("Getting part id: " + part_id)
 
-    id_machine = data['shot']['machine']
-    id_die = data['part']['die']
+    id_die = data['part_name'][-3:]
     print(id_die)
     if id_die not in DIE_LIST:
         return
     
-    return 
-    recorded_stamp = data['shot']['recordedAt']
-    date_ist = date_processing(date=recorded_stamp)
+    part_id = data['shot_month'] + data['shot_day'] + data['shot_hour'] + data['shot_minute'] + data['machine_name'][-1:] + str(data['shot_number'])
+    print("Getting part id: " + part_id)
 
+    machine_id = data['machine_name']
+    if(machine_id[-1:] != "2"):
+        print("Not Ube 850T-02")
+        return
+        
+    
     #Connect to database
     conn = psycopg2.connect(**DB_CONFIG)
     cur  = conn.cursor()
@@ -113,6 +163,17 @@ def process_data_shot(data):
     ('Suzuki',)
     )
     id_client = cur.fetchone()[0]
+
+    cur.execute(
+        "SELECT id_machine FROM machine WHERE id_client = %s",
+        ('1',)
+        )
+    id_machine = cur.fetchone()[0]
+    print(id_machine)
+    
+    recorded_stamp = data['recorded_at']
+    date_ist = date_processing(date=recorded_stamp)
+    
 
     cur.execute("""
         INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at)
@@ -124,10 +185,18 @@ def process_data_shot(data):
             manufactored_on = EXCLUDED.manufactored_on
 """, (part_id, id_die, id_client, id_machine, date_ist, datetime.now()))
 
-    for param, val in data['shot']['parameters'].items():
+    for param, val in data.items():
         if(param not in PARAM_MAP):
             continue
         param_name = names_UOM[param][0]
+        if(param != "cycle_time" and param != "shot_acc_pressure" and param != "intensification_acc_pressure"):
+            print(param_name)
+            print(f"{param}_lower_tolerance: ")
+            param_lower_tolerance = data[f"{param}_lower_limit"]
+            print(param_lower_tolerance)
+            print(f"{param}_upper_tolerance: ")
+            param_upper_tolerance = data[f"{param}_upper_limit"]
+            print(param_upper_tolerance)
         
         uom = names_UOM[param][1]
         cur.execute("""
@@ -140,10 +209,6 @@ def process_data_shot(data):
                     value = EXCLUDED.value,
                     updated_at = EXCLUDED.updated_at
         """, (part_id, id_die, id_client, id_machine, param_name, uom, val, date_ist, datetime.now()))
-
-    if(data['rejection']['category'] != "PRODUCTION"):
-        print(data['reason'])
-        store_defect(cur, data, id_client)
 
     conn.commit()
     cur.close()

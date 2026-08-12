@@ -238,7 +238,7 @@ def monitor_data(die):
     last_params["part_id"] = part_id
     last_params["timestamp"] = formatted
     #print(last_params)
-    return [last_params, die_id]
+    return [last_params, ranges]
 
 def predictions(die):
 
