@@ -169,7 +169,7 @@ def process_data_shot(data):
         ('1',)
         )
     id_machine = cur.fetchone()[0]
-    print(id_machine)
+    # print(id_machine)
     
     recorded_stamp = data['recorded_at']
     date_ist = date_processing(date=recorded_stamp)
@@ -189,26 +189,21 @@ def process_data_shot(data):
         if(param not in PARAM_MAP):
             continue
         param_name = names_UOM[param][0]
-        if(param != "cycle_time" and param != "shot_acc_pressure" and param != "intensification_acc_pressure"):
-            print(param_name)
-            print(f"{param}_lower_tolerance: ")
-            param_lower_tolerance = data[f"{param}_lower_limit"]
-            print(param_lower_tolerance)
-            print(f"{param}_upper_tolerance: ")
-            param_upper_tolerance = data[f"{param}_upper_limit"]
-            print(param_upper_tolerance)
+        param_lower_tolerance = data.get(f"{param}_lower_limit") or 0
+        param_upper_tolerance = data.get(f"{param}_upper_limit") or 0
+            # print(param_upper_tolerance)
         
         uom = names_UOM[param][1]
         cur.execute("""
-                INSERT INTO operating_parameter (id_part, id_die, id_client, id_machine, parameter_name, "UOM", value, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO operating_parameter (id_part, id_die, id_client, id_machine, parameter_name, "UOM", value, recomended_lower_tolerance, recomended_upper_tolerance, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s,  %s,  %s, %s)
                 ON CONFLICT (id_part, parameter_name) DO UPDATE SET
                     id_die = EXCLUDED.id_die,
                     id_client = EXCLUDED.id_client,
                     id_machine = EXCLUDED.id_machine,
                     value = EXCLUDED.value,
                     updated_at = EXCLUDED.updated_at
-        """, (part_id, id_die, id_client, id_machine, param_name, uom, val, date_ist, datetime.now()))
+        """, (part_id, id_die, id_client, id_machine, param_name, uom, val, param_lower_tolerance, param_upper_tolerance, date_ist, datetime.now()))
 
     conn.commit()
     cur.close()

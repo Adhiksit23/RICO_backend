@@ -168,9 +168,9 @@ def get_iot_data(token: str, data_path):
     data = resp.json()
     #print(data)
     if len(data['records']) != 0:
-        print(len(data['records']))
+        # print(len(data['records']))
         last_record = data['records'][0]
-        print(last_record)
+        # print(last_record)
         process_data(last_record)
     
     return
@@ -192,8 +192,8 @@ def get_latest_calibration(machine: str = None, die: str = None):
 
     #baselines = {PARAM_MAP_BL[k]:v for k, v in baselines.items()}
     baselines = {k:v for k, v in baselines.items()}
-    
-    #print(baselines.keys())
+    # print("From Latest")
+    # print(baselines)
     conn.commit()
     cur.close()
     conn.close()
@@ -217,12 +217,6 @@ def monitor_data(die):
     """
 
     df_raw = pd.read_sql(query, conn, params=(die,))
-    #print(df_raw)
-    timestamp = df_raw["created_at"].iloc[0]  
-    ist = timezone(timedelta(hours=5, minutes=30))
-    formatted = timestamp.tz_convert(ist).strftime("%Y-%m-%dT%H:%M:%S")
-    #print(timestamp)      
-    
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
     die_id = df.index.get_level_values("id_die")[0]
@@ -235,10 +229,27 @@ def monitor_data(die):
 
     parameters = X.iloc[0].to_dict()
     last_params = {PARAM_MAP[d]:v for d , v in parameters.items()}
+    
+    baselines = (df_raw.set_index("parameter_name")[["recomended_lower_tolerance", "recomended_upper_tolerance"]].apply(list, axis=1).to_dict())
+    baselines_full = {
+    param: {
+        "baseline": 0,
+        "lower_tolerance": values[0],
+        "upper_tolerance": values[1],
+    }
+    for param, values in baselines.items()
+}
     last_params["part_id"] = part_id
+    timestamp = df_raw["created_at"].iloc[0]      
+    ist = timezone(timedelta(hours=5, minutes=30))
+    formatted = timestamp.tz_convert(ist).strftime("%Y-%m-%dT%H:%M:%S")
+       
     last_params["timestamp"] = formatted
-    #print(last_params)
-    return [last_params, ranges]
+    # print(last_params.keys())
+    # print("From monitor")
+    # print(baselines)
+
+    return [last_params, baselines_full]
 
 def predictions(die):
 

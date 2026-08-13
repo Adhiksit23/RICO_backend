@@ -41,11 +41,11 @@ def predict(die: str):
             detail=f"Prediction failed for die '{die}': {str(exc)}",
         ) from exc
 
-    try:
-        last_predictions(die, 5)
-    except Exception as exc:
-        # Non-fatal: log but don't fail the whole predict response
-        logger.warning("[/predict] Could not store last predictions for die=%s: %s", die, exc)
+    # try:
+    #     last_predictions(die, 5)
+    # except Exception as exc:
+    #     # Non-fatal: log but don't fail the whole predict response
+    #     logger.warning("[/predict] Could not store last predictions for die=%s: %s", die, exc)
 
     return {
         "blowhole":    round(prediction[0] * 100, 2),
@@ -64,7 +64,7 @@ def monitor(die: str):
     Returns [parameter_data, calibration_ranges].
     """
     try:
-        data, die_id = monitor_data(die)
+        data, ranges = monitor_data(die)
     except Exception as exc:
         logger.exception("[/monitor] Failed to fetch monitor data for die=%s", die)
         raise HTTPException(
@@ -73,7 +73,7 @@ def monitor(die: str):
         ) from exc
 
     try:
-        ranges = get_latest_calibration(die)
+        ranges2 = get_latest_calibration(die)
     except Exception as exc:
         logger.exception("[/monitor] Failed to fetch calibration ranges for die=%s", die)
         raise HTTPException(
