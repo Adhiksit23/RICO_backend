@@ -52,7 +52,8 @@ def main(machine_id, die):
 
     """
     df_raw = pd.read_sql(query, conn, params=(die, machine_id))
-
+    part_ids = df_raw["id_part"].unique().tolist()
+    print("Part Ids seen: ", part_ids)
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     param_names = [col for col in df.columns if col not in ["id_part", "id_die"]]
     df.columns.name = None
@@ -96,7 +97,7 @@ def main(machine_id, die):
         
         bl_params[param] = (new_avg, new_tol, max(0, new_avg - new_tol), new_avg + new_tol, uom)
              
-    print(num_samples) 
+    print("Number of samples used for calculation: ", num_samples) 
     return [bl_params, num_samples]
 
 if __name__ == "__main__":

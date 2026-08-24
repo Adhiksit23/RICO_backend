@@ -16,7 +16,7 @@ import requests
 from .data_processing import process_data, store_quality_pred
 import os
 
-BASE_URL = "http://192.168.100.136:9090/api/v1"
+BASE_URL = "http://192.168.100.136:9090/api/v1" 
 AUTH_PATH = "/auth/login"
  
 USERNAME = "sanjeev"
@@ -129,12 +129,12 @@ def update_date_path() -> str:
     #Connect to database
     # Fall back to a default if the table is empty
    
-    date_from = date.today().strftime("%Y-%m-%dT00:00:00")
-    date_to = (date.today() + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
+    date_from = date.today().strftime("%Y-%m-%dT06:00:00")
+    date_to = (date.today() + timedelta(days=1)).strftime("%Y-%m-%dT06:00:00")
 
     # date_from = "2026-07-16T00:00:00"
     # date_to = "2026-07-16T12:00:00"
-    data_path = f"/reports/report/data?dateFrom={date_from}&dateTo={date_to}&shiftCode={SHIFT_CODE}&lineName={LINE_NAME}&partName={PART_NAME}&dieCastingMachine={DIE_CASTING_MACHINE}&page={PAGE}&pageSize={PAGE_SIZE}&clean=1&full=1&fast=false&includePlcReadings=1&includeLeaktest=1&includePlcSummary=1&noCache=1"
+    data_path = f"/reports/report/historical?dateFrom={date_from}&dateTo={date_to}&page={PAGE}&pageSize={PAGE_SIZE}&partCategory=HPDC&clean=1"
     return data_path
 
 

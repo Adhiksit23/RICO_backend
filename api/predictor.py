@@ -64,7 +64,7 @@ def monitor(die: str):
     Returns [parameter_data, calibration_ranges].
     """
     try:
-        data, ranges = monitor_data(die)
+        data, _ = monitor_data(die)
     except Exception as exc:
         logger.exception("[/monitor] Failed to fetch monitor data for die=%s", die)
         raise HTTPException(
@@ -73,7 +73,7 @@ def monitor(die: str):
         ) from exc
 
     try:
-        ranges2 = get_latest_calibration(die)
+        ranges = get_latest_calibration(die)
     except Exception as exc:
         logger.exception("[/monitor] Failed to fetch calibration ranges for die=%s", die)
         raise HTTPException(

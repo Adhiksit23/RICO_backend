@@ -69,7 +69,7 @@ PARAM_MAP = {
 }
 DIE_LIST = ["S14", "S16", "S17"]
 
-def store_defect(cur, row, id_client):
+def store_defect(cur, row, id_client, id_machine):
     defect = row['rejection']['reason']
     category = row['rejection']['category']
     zone = row['rejection']['zone']
@@ -77,7 +77,6 @@ def store_defect(cur, row, id_client):
     view = row['rejection']['view']
     part_id = row['part']['id']
     id_die = row['part']['die']
-    id_machine = row['shot']['machine']
     cur.execute("""
             INSERT INTO part_quality (id_part, id_die, id_client, category, zone, sub_zone, view, id_machine, defect_type)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -100,14 +99,15 @@ def process_data(data):
     client_code = "R437111511"
     print("Getting part id: " + part_id)
     if(client_code in part_id):
-        #part_id = data['shot']['number']
+        print("PROBLEM IN API")
         return
 
-    id_machine = data['shot']['machine']
+    id_machine = data['shot']['machine'] #This needs to be updated to use stored machine id
     id_die = data['part']['die']
     print(id_die)
     if id_die not in DIE_LIST:
         return
+
     
     recorded_stamp = data['shot']['recordedAt']
     date_ist = date_processing(date=recorded_stamp)
@@ -121,6 +121,13 @@ def process_data(data):
     ('Suzuki',)
     )
     id_client = cur.fetchone()[0]
+
+    cur.execute(
+        "SELECT id_machine FROM machine WHERE id_client = %s",
+        ('1',)
+        )
+    id_machine = cur.fetchone()[0]
+    print(id_machine)
 
     cur.execute("""
         INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at)
@@ -149,9 +156,9 @@ def process_data(data):
                     updated_at = EXCLUDED.updated_at
         """, (part_id, id_die, id_client, id_machine, param_name, uom, val, date_ist, datetime.now()))
 
-    if(data['rejection']['category'] != "PRODUCTION"):
-        print(data['reason'])
-        store_defect(cur, data, id_client)
+    if(data['rejection']['reason'] != None):
+        print(data['rejection']['reason'])
+        store_defect(cur, data, id_client, id_machine)
 
     conn.commit()
     cur.close()

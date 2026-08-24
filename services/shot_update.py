@@ -169,7 +169,7 @@ def process_data_shot(data):
         ('1',)
         )
     id_machine = cur.fetchone()[0]
-    # print(id_machine)
+    print(id_machine)
     
     recorded_stamp = data['recorded_at']
     date_ist = date_processing(date=recorded_stamp)
