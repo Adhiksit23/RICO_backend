@@ -183,17 +183,23 @@ def get_latest_calibration(machine: str = None, die: str = None):
     query = """
         SELECT c.parameter_name, c.baseline, c.upper_tolerance, c.lower_tolerance
         FROM calibration_parameter c
-        WHERE c.id_calibration = %s;
+        WHERE c.id_die = %s
+        AND c.id_calibration = (
+          SELECT MAX(id_calibration)
+          FROM calibration_parameter
+          WHERE id_die = %s
+        ) """
 
-    """
-    df_baselines = pd.read_sql(query, conn, params=('39',))
     
+    df_baselines = pd.read_sql(query, conn, params=(die,die))
+    # print(die)
+    # print(df_baselines)
     baselines = df_baselines.set_index('parameter_name').to_dict(orient='index')
 
-    #baselines = {PARAM_MAP_BL[k]:v for k, v in baselines.items()}
+    # baselines = {PARAM_MAP_BL[k]:v for k, v in baselines.items()}
     baselines = {k:v for k, v in baselines.items()}
     # print("From Latest")
-    # print(baselines)
+    print(baselines)
     conn.commit()
     cur.close()
     conn.close()
@@ -272,7 +278,7 @@ def predictions(die):
     df_raw = pd.read_sql(query, conn, params=(die,))
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
-    id_part = df.index.get_level_values("id_part")[0]
+    # id_part = df.index.get_level_values("id_part")[0]
     #print(id_part)
     
     X = pd.DataFrame(index=df.index)
@@ -283,11 +289,15 @@ def predictions(die):
     query = """
         SELECT c.parameter_name, c.baseline, c.upper_tolerance, c.lower_tolerance
         FROM calibration_parameter c
-        WHERE c.id_calibration = %s;
+        WHERE c.id_die = %s
+        AND c.id_calibration = (
+                  SELECT MAX(id_calibration)
+                  FROM calibration_parameter
+                  WHERE id_die = %s
+                )
 
     """
-    #For model bef it was 24
-    df_baselines = pd.read_sql(query, conn, params=('39',))
+    df_baselines = pd.read_sql(query, conn, params=(die,die))
     
     #Temporary, will be removed after retraining model to so that it uses all parameters rather than having remove conditions
     df_baselines = df_baselines[df_baselines["parameter_name"] != "DIE-CLOSE CORE IN TIME"]
@@ -317,6 +327,7 @@ def predictions(die):
             feat_rows.append(feats)
         feat_df = pd.DataFrame(feat_rows, index=df.index)
         feat_datasets[defect] = feat_df
+        # print(f"{defect}: {feat_df.T}")
 
     pred_results = []
     #print("Going to model")
@@ -333,7 +344,7 @@ def predictions(die):
         pred_results.append(prob)
 
     predictions = [float(p[0]) for p in pred_results]
-    store_quality_pred(predictions, df_raw, TARGET_DEFECTS, cur)
+    # store_quality_pred(predictions, df_raw, TARGET_DEFECTS, cur)
     
     conn.commit()
     cur.close()

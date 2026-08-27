@@ -73,7 +73,8 @@ def monitor(die: str):
         ) from exc
 
     try:
-        ranges = get_latest_calibration(die)
+        print("Die for latest ranges is: ", die)
+        ranges = get_latest_calibration(die = die)
     except Exception as exc:
         logger.exception("[/monitor] Failed to fetch calibration ranges for die=%s", die)
         raise HTTPException(
@@ -91,9 +92,9 @@ def update():
     Currently disabled — returns status message.
     """
     # Uncomment below when IoT integration is re-enabled:
-    data_path = update_date_path()
-    token = get_auth_token()
-    get_iot_data(token, data_path)
+    # data_path = update_date_path()
+    # token = get_auth_token()
+    # get_iot_data(token, data_path)
     return {"status": "update endpoint is currently disabled"}
 
 
@@ -104,9 +105,9 @@ def update_IOT():
     Currently disabled — returns status message.
     """
     # Uncomment below when IoT integration is re-enabled:
-    data_path = update_date_path_shot()
-    token = get_auth_token_shot()
-    get_iot_data_shot(token, data_path)
+    # data_path = update_date_path_shot()
+    # token = get_auth_token_shot()
+    # get_iot_data_shot(token, data_path)
     return {"status": "update endpoint is currently disabled"}
 
 
