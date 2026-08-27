@@ -344,7 +344,7 @@ def predictions(die):
         pred_results.append(prob)
 
     predictions = [float(p[0]) for p in pred_results]
-    # store_quality_pred(predictions, df_raw, TARGET_DEFECTS, cur)
+    store_quality_pred(predictions, df_raw, TARGET_DEFECTS, cur)
     
     conn.commit()
     cur.close()
