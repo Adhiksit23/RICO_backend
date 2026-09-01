@@ -30,6 +30,10 @@ python -m venv venv
 
 .\venv\Scripts\activate
 
+from macOS / Linux
+
+source venv/bin/activate 
+
 You should now see:
 
 (venv)
