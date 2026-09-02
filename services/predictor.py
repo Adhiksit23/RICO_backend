@@ -16,7 +16,7 @@ import requests
 from .data_processing import process_data, store_quality_pred
 import os
 
-BASE_URL = "http://192.168.100.136:9090/api/v1" 
+BASE_URL = "http://14.195.222.243:9090/api/v1" 
 AUTH_PATH = "/auth/login"
  
 USERNAME = "sanjeev"

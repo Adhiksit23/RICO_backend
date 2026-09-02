@@ -2,7 +2,7 @@ import psycopg2
 from datetime import datetime, date, timedelta, timezone
 import requests
 
-BASE_URL = "http://192.168.100.136:9090/api"
+BASE_URL = "http://14.195.222.243:9090/api"
 AUTH_PATH = "/auth/login"
  
 USERNAME = "sanjeev"
@@ -114,7 +114,7 @@ def get_auth_token_shot() -> str:
 
 def get_iot_data_shot(token: str, data_path):
     """Step 2: GET the data endpoint using the token from step 1."""
-    url = f"{"http://192.168.100.136/api"}{data_path}"
+    url = f"{"http://14.195.222.243/api"}{data_path}"
     print(url)
     headers = {"Authorization": f"Bearer {token}"}
     resp = requests.get(url, headers=headers, timeout=15)
