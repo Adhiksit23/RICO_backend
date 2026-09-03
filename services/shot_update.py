@@ -27,7 +27,7 @@ LIMIT = "200"
 PAGE = "1"
 SHOT_RESULT = "ALL"
 PAGE_SIZE = "200"
-IP = "192.168.117.201"
+IP = "14.195.222.243"
 
 
 names_UOM = {'accel_point': ['ACCEL. POINT', 'mm'], 
