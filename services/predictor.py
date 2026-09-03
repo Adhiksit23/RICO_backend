@@ -160,7 +160,7 @@ def get_iot_data(token: str, data_path):
     """Step 2: GET the data endpoint using the token from step 1."""
     url = f"{BASE_URL}{data_path}"
     headers = {"Authorization": f"Bearer {token}"}
-    print(data_path)
+    # print(data_path)
     resp = requests.get(url, headers=headers, timeout=40)
     time_taken = resp.elapsed.total_seconds()
     print(f"Time taken: {time_taken} seconds")
@@ -199,7 +199,7 @@ def get_latest_calibration(machine: str = None, die: str = None):
     # baselines = {PARAM_MAP_BL[k]:v for k, v in baselines.items()}
     baselines = {k:v for k, v in baselines.items()}
     # print("From Latest")
-    print(baselines)
+    # print(baselines)
     conn.commit()
     cur.close()
     conn.close()

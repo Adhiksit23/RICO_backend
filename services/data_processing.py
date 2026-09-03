@@ -67,7 +67,7 @@ PARAM_MAP = {
     "furnaceMetalTemp": "METAL TEMP.value",
 
 }
-DIE_LIST = ["S14", "S16", "S17"]
+DIE_LIST = ["S14", "S16", "S17", "S18"]
 
 def store_defect(cur, row, id_client, id_machine):
     defect = row['rejection']['reason']
