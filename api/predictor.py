@@ -73,7 +73,7 @@ def monitor(die: str):
         ) from exc
 
     try:
-        print("Die for latest ranges is: ", die)
+        # print("Die for latest ranges is: ", die)
         ranges = get_latest_calibration(die = die)
     except Exception as exc:
         logger.exception("[/monitor] Failed to fetch calibration ranges for die=%s", die)

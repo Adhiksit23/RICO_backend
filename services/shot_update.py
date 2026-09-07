@@ -2,7 +2,7 @@ import psycopg2
 from datetime import datetime, date, timedelta, timezone
 import requests
 
-BASE_URL = "http://192.168.100.136:9090/api"
+BASE_URL = "http://14.195.222.243:9090/api"
 AUTH_PATH = "/auth/login"
  
 USERNAME = "sanjeev"
@@ -20,7 +20,7 @@ DB_CONFIG = {
     
 }
 
-DIE_LIST = ["S14", "S16", "S17"]
+DIE_LIST = ["S14", "S16", "S17", "S18"]
 
 SHIFT_CODE = "ALL"
 LIMIT = "200"
@@ -114,15 +114,14 @@ def get_auth_token_shot() -> str:
 
 def get_iot_data_shot(token: str, data_path):
     """Step 2: GET the data endpoint using the token from step 1."""
-    url = f"{"http://192.168.100.136/api"}{data_path}"
-    print(url)
+    url = f"{"http://14.195.222.243/api"}{data_path}"
+    print("Latest data url: ", url)
     headers = {"Authorization": f"Bearer {token}"}
     resp = requests.get(url, headers=headers, timeout=15)
     # time_taken = resp.elapsed.total_seconds()
     # print(f"Time taken: {time_taken} seconds")
     resp.raise_for_status()
     data = resp.json()
-    #print(data)
     if len(data['data']) != 0:
         print(len(data['data']))
         last_record = data['data'][0]
@@ -140,8 +139,8 @@ def date_processing(date):
 
 def process_data_shot(data):
 
-    id_die = data['part_name'][-3:]
-    print(id_die)
+    id_die = data['die_name']
+    print("Latest data die id is:",id_die)
     if id_die not in DIE_LIST:
         return
     
@@ -169,7 +168,7 @@ def process_data_shot(data):
         ('1',)
         )
     id_machine = cur.fetchone()[0]
-    print(id_machine)
+    # print(id_machine)
     
     recorded_stamp = data['recorded_at']
     date_ist = date_processing(date=recorded_stamp)
