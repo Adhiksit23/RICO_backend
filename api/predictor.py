@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 
 logger = logging.getLogger(__name__)
@@ -127,3 +128,15 @@ def last_pred(die: str, N: int):
         ) from exc
 
     return result
+
+
+scheduler = BackgroundScheduler()
+
+@app.on_event("startup")
+def start_scheduler():
+    scheduler.add_job(update_iot_data, "interval", seconds=60)
+    scheduler.start()
+
+@app.on_event("shutdown")
+def stop_scheduler():
+    scheduler.shutdown()

@@ -110,7 +110,7 @@ def apply_new_calibration(
     data: dict[str, dict],
     machine: str | None = None,
     die: str | None = "S14",
-    num_samples: int | None = 0
+    samples_analyzed: int | None = 0
 ):
     """Apply (save) new calibration parameter values to the database."""
     if not data:
@@ -119,10 +119,10 @@ def apply_new_calibration(
             detail="No calibration data provided in request body.",
         )
 
-    if num_samples is None or num_samples <= 50:
+    if samples_analyzed is None or samples_analyzed <= 50:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"num_samples must be greater than 50, got {num_samples}",
+            detail=f"num_samples must be greater than 50, got {samples_analyzed}",
         )
 
     try:
