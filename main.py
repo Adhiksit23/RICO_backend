@@ -1,3 +1,6 @@
+from contextlib import asynccontextmanager
+import logging
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,11 +14,30 @@ from api.predictor import router as predictor_router
 from api.calibrator import router as calibrator_router
 from api.trainer import router as trainer_router
 from api.calibration_api import router as calibration_router
+from api.iot import router as iot_router
+from services.iot_scheduler import start_iot_scheduler_on_boot, shutdown_iot_scheduler
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logger = logging.getLogger("rico")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_iot_scheduler_on_boot()
+    try:
+        yield
+    finally:
+        shutdown_iot_scheduler()
+
 
 app = FastAPI(
     title="RICO — Industrial AI Platform",
     version="2.0.0",
     description="AI-powered die casting quality control backend.",
+    lifespan=lifespan,
 )
 
 # CORS — restrict to known origins with credentials
@@ -45,6 +67,7 @@ app.include_router(predictor_router)
 app.include_router(calibrator_router)
 app.include_router(trainer_router)
 app.include_router(calibration_router)
+app.include_router(iot_router)
 
 
 @app.get("/")
