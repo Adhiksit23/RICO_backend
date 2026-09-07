@@ -18,12 +18,7 @@ from services.predictor import (
     monitor_data
 )
 
-
-from services.shot_update import (
-    update_date_path_shot,
-    get_auth_token_shot,
-    get_iot_data_shot,
-)
+from services.iot_scheduler import run_iot_sync
 
 
 @router.get("/predict")
@@ -40,12 +35,6 @@ def predict(die: str):
             status_code=500,
             detail=f"Prediction failed for die '{die}': {str(exc)}",
         ) from exc
-
-    # try:
-    #     last_predictions(die, 5)
-    # except Exception as exc:
-    #     # Non-fatal: log but don't fail the whole predict response
-    #     logger.warning("[/predict] Could not store last predictions for die=%s: %s", die, exc)
 
     return {
         "blowhole":    round(prediction[0] * 100, 2),
@@ -73,8 +62,7 @@ def monitor(die: str):
         ) from exc
 
     try:
-        # print("Die for latest ranges is: ", die)
-        ranges = get_latest_calibration(die = die)
+        ranges = get_latest_calibration(die=die)
     except Exception as exc:
         logger.exception("[/monitor] Failed to fetch calibration ranges for die=%s", die)
         raise HTTPException(
@@ -88,27 +76,37 @@ def monitor(die: str):
 @router.get("/update")
 def update():
     """
-    Trigger a manual IoT data fetch and update cycle.
-    Currently disabled — returns status message.
+    Manual legacy historical IoT sync (reports API).
+    Prefer server scheduler (IOT_SYNC_ENABLED) for production.
     """
-    # Uncomment below when IoT integration is re-enabled:
-    data_path = update_date_path()
-    token = get_auth_token()
-    get_iot_data(token, data_path)
-    return {"status": "update endpoint is currently disabled"}
+    try:
+        data_path = update_date_path()
+        token = get_auth_token()
+        get_iot_data(token, data_path)
+        return {"status": "ok", "pipeline": "legacy_reports"}
+    except Exception as exc:
+        logger.exception("[/update] Legacy IoT sync failed")
+        raise HTTPException(
+            status_code=503,
+            detail=f"IoT legacy sync failed (server unreachable or error): {exc}",
+        ) from exc
 
 
 @router.get("/update_IOT")
 def update_IOT():
     """
-    Trigger a manual IoT data fetch and update cycle.d
-    Currently disabled — returns status message.
+    Manual PLC shot sync. Production should use the backend scheduler
+    (IOT_SYNC_ENABLED=true) so sync continues when the browser is closed.
     """
-    # Uncomment below when IoT integration is re-enabled:
-    data_path = update_date_path_shot()
-    token = get_auth_token_shot()
-    get_iot_data_shot(token, data_path)
-    return {"status": "update endpoint is currently disabled"}
+    result = run_iot_sync(trigger="manual_api")
+    if result.get("status") == "skipped":
+        return result
+    if result.get("status") == "error":
+        raise HTTPException(
+            status_code=503,
+            detail=f"IoT shot sync failed: {result.get('error', 'unknown error')}",
+        )
+    return result
 
 
 @router.get("/last_pred")
