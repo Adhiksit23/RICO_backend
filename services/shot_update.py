@@ -29,10 +29,10 @@ TOKEN_JSON_PATH = "token"
 
 DIE_LIST = ["S14", "S16", "S17", "S18"]
 
-SHIFT_CODE = "ALL"
-LIMIT = "200"
+SHIFT_CODE = "all"
+LIMIT = "2000"
 PAGE = "1"
-SHOT_RESULT = "ALL"
+SHOT_RESULT = "all"
 PAGE_SIZE = "200"
 
 names_UOM = {
@@ -90,16 +90,15 @@ PARAM_MAP = {
 
 def update_date_path_shot() -> str:
     """Build PLC history query path for today's shots."""
-    date_from = date.today().strftime("%Y-%m-%dT00:00:00")
+    date_from =  date.today().strftime("%Y-%m-%dT00:00:00")
     date_to = (date.today() + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
+
     query = urlencode(
         {
             "ip": IOT_MACHINE_IP,
             "from": date_from,
             "to": date_to,
             "limit": LIMIT,
-            "page": PAGE,
-            "pageSize": PAGE_SIZE,
             "shift": SHIFT_CODE,
             "shotResult": SHOT_RESULT,
         }
@@ -140,11 +139,19 @@ def get_iot_data_shot(token: str, data_path: str) -> None:
     data = resp.json()
 
     rows = data.get("data") or []
+    row = rows[0]
     if not rows:
         logger.info("[shot_update] No shot rows returned")
         return
 
-    process_data_shot(rows[0])
+    target_shot = 6671
+    # print(rows[0].get("shot_number") == 8754)
+    # print(type(rows[0].get("shot_number")))
+    # row = next((r for r in rows if r.get("shot_number") == target_shot), None)
+    # if row is None:
+    #     logger.info("[shot_update] No row with shot_number=%s", target_shot)
+    #     return
+    process_data_shot(row)
 
 
 def date_processing(raw_date: str) -> datetime:

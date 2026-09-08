@@ -15,12 +15,13 @@ from datetime import date, timedelta, timezone
 import requests
 from .data_processing import process_data, store_quality_pred
 import os
+from .config import DB_CONFIG, IOT_BASE_URL, IOT_USERNAME, IOT_PASSWORD, IOT_AUTH_TIMEOUT, IOT_DATA_TIMEOUT
 
-BASE_URL = "http://14.195.222.243:9090/api/v1" 
+BASE_URL = f"{IOT_BASE_URL}/v1"
 AUTH_PATH = "/auth/login"
  
-USERNAME = "sanjeev"
-PASSWORD = "Sanjeev@rico123"
+USERNAME = IOT_USERNAME
+PASSWORD = IOT_PASSWORD
 
 TOKEN_JSON_PATH = "token"
 
@@ -108,29 +109,20 @@ RAW_TO_MODEL_ORDER = [
 #The target outputs
 TARGET_DEFECTS = ["Blow_Hole","Crack","Non_filling","Porosity","Shrinkage","Chipoff"]
 
-#Database configurations for access
-DB_CONFIG = {
-    "host":     "aws-1-ap-southeast-2.pooler.supabase.com",
-    "dbname":   "postgres",
-    "user":     "postgres.nnflwohgewhkqqjfvote",
-    "password": "Datamgnt25!#",
-    "options":  "-c search_path=rico"
-    
-}
-
+# Database configuration from centralized services.config (env)
 SHIFT_CODE = "ALL"
 LINE_NAME = "OIL PAN K-12"
 PART_NAME = "OPK12"
 DIE_CASTING_MACHINE = "UBE 850 T - 02"
 PAGE = "1"
-PAGE_SIZE = "50"
+PAGE_SIZE = "2000"
 
 def update_date_path() -> str:
     #Connect to database
     # Fall back to a default if the table is empty
    
-    date_from = date.today().strftime("%Y-%m-%dT06:00:00")
-    date_to = (date.today() + timedelta(days=1)).strftime("%Y-%m-%dT06:00:00")
+    date_from =  date.today().strftime("%Y-%m-%dT06:00:00")
+    date_to =  (date.today() + timedelta(days=1)).strftime("%Y-%m-%dT06:00:00")
 
     # date_from = "2026-07-16T00:00:00"
     # date_to = "2026-07-16T12:00:00"
@@ -144,7 +136,7 @@ def get_auth_token() -> str:
     url = f"{BASE_URL}{AUTH_PATH}"
     payload = {"username": USERNAME, "password": PASSWORD}
  
-    resp = requests.post(url, json=payload, timeout=15)
+    resp = requests.post(url, json=payload, timeout=IOT_AUTH_TIMEOUT)
     resp.raise_for_status()
     body = resp.json()
  
@@ -160,18 +152,26 @@ def get_iot_data(token: str, data_path):
     """Step 2: GET the data endpoint using the token from step 1."""
     url = f"{BASE_URL}{data_path}"
     headers = {"Authorization": f"Bearer {token}"}
-    # print(data_path)
-    resp = requests.get(url, headers=headers, timeout=40)
+    print(url)
+    resp = requests.get(url, headers=headers, timeout=IOT_DATA_TIMEOUT)
     time_taken = resp.elapsed.total_seconds()
     print(f"Time taken: {time_taken} seconds")
     resp.raise_for_status()
     data = resp.json()
-    #print(data)
-    if len(data['records']) != 0:
-        # print(len(data['records']))
-        last_record = data['records'][0]
-        # print(last_record)
-        process_data(last_record)
+    # print(data)
+
+    rows = data.get("records") or []
+    row = rows[0]
+    if not rows:
+        print("[defect_update] No rows returned")
+        return
+    # target_shot = 6671
+    # row = next((r for r in rows if (r.get("shot").get("number")  == target_shot) and (r.get("rejection").get("reason") != None)), None)
+    # if row is None:
+    #     print(f"[shot_update] No row with shot_number=%s", target_shot)
+    #     return
+    
+    process_data(row)
     
     return
 

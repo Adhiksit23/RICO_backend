@@ -77,10 +77,24 @@ def store_defect(cur, row, id_client, id_machine):
     view = row['rejection']['view']
     part_id = row['part']['id']
     id_die = row['part']['die']
+    # cur.execute("""
+    #         INSERT INTO part_quality (id_part, id_die, id_client, category, zone, sub_zone, view, id_machine, defect_type)
+    #         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    # """, (part_id, id_die, id_client, category, zone, sub_zone, view, id_machine, defect))
+
     cur.execute("""
-            INSERT INTO part_quality (id_part, id_die, id_client, category, zone, sub_zone, view, id_machine, defect_type)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (part_id, id_die, id_client, category, zone, sub_zone, view, id_machine, defect))
+    INSERT INTO part_quality (id_part, id_die, id_client, updated_at, category, zone, sub_zone, view, id_machine, defect_type)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ON CONFLICT (id_part) DO UPDATE SET
+        id_die = EXCLUDED.id_die,
+        id_client = EXCLUDED.id_client,
+        category = EXCLUDED.category,
+        zone = EXCLUDED.zone,
+        sub_zone = EXCLUDED.sub_zone,
+        view = EXCLUDED.view,
+        id_machine = EXCLUDED.id_machine,
+        defect_type = EXCLUDED.defect_type
+""", (part_id, id_die, id_client, datetime.now(), category, zone, sub_zone, view, id_machine, defect))
 
 def date_processing(date):
     naive = datetime.fromisoformat(date.replace("Z", ""))
@@ -101,10 +115,11 @@ def process_data(data):
     if(client_code in part_id):
         print("PROBLEM IN API")
         return
-
+    
+    # print("reason of defect:", data['rejection'])
     id_machine = data['shot']['machine'] #This needs to be updated to use stored machine id
     id_die = data['part']['die']
-    print(id_die)
+    # print(id_die)
     if id_die not in DIE_LIST:
         return
 
@@ -156,6 +171,7 @@ def process_data(data):
                     updated_at = EXCLUDED.updated_at
         """, (part_id, id_die, id_client, id_machine, param_name, uom, val, date_ist, datetime.now()))
 
+    print(data['rejection']['reason'])
     if(data['rejection']['reason'] != None):
         print(data['rejection']['reason'])
         store_defect(cur, data, id_client, id_machine)

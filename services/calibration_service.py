@@ -45,7 +45,7 @@ def get_latest_parameters(machine: str = None, die: str = None):
             "max_range": float(row["upper_tolerance"])
             } for _, row in df.iterrows()
         }
-        print("Result of latest in calibration page: ", result )
+        # print("Result of latest in calibration page: ", result )
     except Exception as exc:
         logger.exception("get_latest_parameters failed for die=%s", die)
         raise
