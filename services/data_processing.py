@@ -3,14 +3,19 @@ import json
 from datetime import date, datetime, timezone, timedelta
 
 
-DB_CONFIG = {
-    "host":     "aws-1-ap-southeast-2.pooler.supabase.com",
-    "dbname":   "postgres",
-    "user":     "postgres.nnflwohgewhkqqjfvote",
-    "password": "Datamgnt25!#",
-    "options":  "-c search_path=rico"
+# DB_CONFIG = {
+#     "host":     "aws-1-ap-southeast-2.pooler.supabase.com",
+#     "dbname":   "postgres",
+#     "user":     "postgres.nnflwohgewhkqqjfvote",
+#     "password": "Datamgnt25!#",
+#     "options":  "-c search_path=rico"    
     
-}
+# }
+
+
+from services.config import (
+    DB_CONFIG
+)
 
 
 

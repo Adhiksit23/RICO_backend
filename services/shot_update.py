@@ -30,10 +30,10 @@ TOKEN_JSON_PATH = "token"
 DIE_LIST = ["S14", "S16", "S17", "S18"]
 
 SHIFT_CODE = "all"
-LIMIT = "2000"
+LIMIT = "100"
 PAGE = "1"
 SHOT_RESULT = "all"
-PAGE_SIZE = "200"
+PAGE_SIZE = "100"
 
 names_UOM = {
     "accel_point": ["ACCEL. POINT", "mm"],
@@ -139,11 +139,11 @@ def get_iot_data_shot(token: str, data_path: str) -> None:
     data = resp.json()
 
     rows = data.get("data") or []
-    row = rows[0]
+    
     if not rows:
         logger.info("[shot_update] No shot rows returned")
         return
-
+    row = rows[0]
     target_shot = 6671
     # print(rows[0].get("shot_number") == 8754)
     # print(type(rows[0].get("shot_number")))

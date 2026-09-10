@@ -115,7 +115,7 @@ LINE_NAME = "OIL PAN K-12"
 PART_NAME = "OPK12"
 DIE_CASTING_MACHINE = "UBE 850 T - 02"
 PAGE = "1"
-PAGE_SIZE = "2000"
+PAGE_SIZE = "100"
 
 def update_date_path() -> str:
     #Connect to database
@@ -161,10 +161,11 @@ def get_iot_data(token: str, data_path):
     # print(data)
 
     rows = data.get("records") or []
-    row = rows[0]
+    
     if not rows:
         print("[defect_update] No rows returned")
         return
+    row = rows[0]
     # target_shot = 6671
     # row = next((r for r in rows if (r.get("shot").get("number")  == target_shot) and (r.get("rejection").get("reason") != None)), None)
     # if row is None:
