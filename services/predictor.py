@@ -275,8 +275,9 @@ def predictions(die):
     );
 
     """
-
+    print(die)
     df_raw = pd.read_sql(query, conn, params=(die,))
+    print(df_raw)
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
     # id_part = df.index.get_level_values("id_part")[0]

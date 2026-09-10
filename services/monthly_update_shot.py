@@ -35,65 +35,58 @@ START_PAGE = 1
 # ============================================================
 # PARAMETER CONFIGURATION
 # ============================================================
-
 names_UOM = {
-    "accelPoint": ["ACCEL. POINT", "mm"],
-    "biscuitThickness": ["BISCUIT THICKNESS", "mm"],
-    "clampForcePercent": ["CLAMP FORCE", "%"],
-    "clampTonnage": ["CLAMP TONNAGE", "Mn"],
-    "curingTime": ["CURING TIME", "sec"],
-    "deaccelPoint": ["DEACEL. POINT", "mm"],
-    "dieOpenCoreOutTime": ["DIE OPEN CORE OUT TIME", "sec"],
-    "dieCloseCoreInTime": ["DIE-CLOSE CORE IN TIME", "sec"],
-    "ejectorTime": ["EJECTOR TIME", "sec"],
-    "extractTime": ["EXTRACT TIME", "sec"],
-    "furnaceMetalTemp": ["FURNACE METAL TEMP.", "C"],
-    "intensificationTime": ["INTEN. TIME", "msec"],
-    "intensificationAccPressure": [
-        "INTENSIFICATION ACC. PRESSURE",
-        "mPa"
-    ],
-    "metalPressure": ["METAL PRESS.", "mPa"],
-    "pouringTime": ["POURING TIME", "sec"],
-    "shotAccPressure": ["SHOT ACC. PRESSURE", "Mpa"],
-    "shotForwardTime": ["SHOT FWD TIME", "sec"],
-    "sprayTime": ["SPRAY TIME", "sec"],
-    "v1Speed": ["V1", "m/sec"],
-    "v2Speed": ["V2", "m/sec"],
-    "v3Speed": ["V3", "m/sec"],
-    "v4Speed": ["V4", "m/sec"],
-    "cycleTime": ["cycletime value (sec)", "sec"],
+    'accel_point': ['ACCEL. POINT', 'mm'],
+    'biscuit_thickness': ['BISCUIT THICKNESS', 'mm'],
+    'clamp_force_pct': ['CLAMP FORCE', '%'],
+    'clamp_tonnage': ['CLAMP TONNAGE', 'Mn'],
+    'curing_time': ['CURING TIME', 'sec'],
+    'deaccel_point': ['DEACEL. POINT', 'mm'],
+    'die_open_core_out_time': ['DIE OPEN CORE OUT TIME', 'sec'],
+    'die_close_core_in_time': ['DIE-CLOSE CORE IN TIME', 'sec'],
+    'ejector_time': ['EJECTOR TIME', 'sec'],
+    'extract_time': ['EXTRACT TIME', 'sec'],
+    'furnace_metal_temp': ['FURNACE METAL TEMP.', 'C'],
+    'intensification_time': ['INTEN. TIME', 'msec'],
+    'intensification_acc_pressure': ['INTENSIFICATION ACC. PRESSURE', 'mPa'],
+    'metal_pressure': ['METAL PRESS.', 'mPa'],
+    'pouring_time': ['POURING TIME', 'sec'],
+    'shot_acc_pressure': ['SHOT ACC. PRESSURE', 'Mpa'],
+    'shot_fwd_time': ['SHOT FWD TIME', 'sec'],
+    'spray_time': ['SPRAY TIME', 'sec'],
+    'v1_speed': ['V1', 'm/sec'],
+    'v2_speed': ['V2', 'm/sec'],
+    'v3_speed': ['V3', 'm/sec'],
+    'v4_speed': ['V4', 'm/sec'],
+    'cycle_time': ['cycletime value (sec)', 'sec'],
 }
 
 
 PARAM_MAP = {
-    "cycleTime": "cycletime value (sec)",
-    "dieCloseCoreInTime": "DIE CLOSE/CORE IN Parameter (sec)value",
-    "pouringTime": "POURING-step value (sec)",
-    "shotForwardTime": "SHOT FWD-step value (sec)",
-    "curingTime": "COOLING-step value (sec)",
-    "dieOpenCoreOutTime": "DIE OPEN/CORE OUT-step value (sec)",
-    "ejectorTime": "EJECTOR-step value (sec)",
-    "extractTime": "EXTRACTOR-step value (sec)",
-    "sprayTime": "SPRAY-step value (sec)",
-    "v1Speed": "SPEED 1 (m/sec)value",
-    "v2Speed": "SPEED 2 (m/sec)value",
-    "v3Speed": "SPEED 3 (m/sec)value",
-    "v4Speed": "SPEED 4(m/sec)value",
-    "accelPoint": "ACC POSITION 1(mm)value",
-    "deaccelPoint": "DEACC POSITION 1(mm)value",
-    "intensificationTime": "INTESIFICAITON TIME(msec)value",
-    "metalPressure": "METAL PRESSURE(Mpa)value",
-    "biscuitThickness": "BISCUIT THICKNESS(mm)value",
-    "clampForcePercent": "CLAMP FORCE(%)value",
-    "clampTonnage": "CLAMP TONNAGE(MN)value",
-    "shotAccPressure": "SHOT ACC. PRESSURE value",
-    "intensificationAccPressure": (
-        "INTESIFICAITON ACC. PRESSUREvalue"
-    ),
-    "furnaceMetalTemp": "METAL TEMP.value",
+    "cycle_time": "cycletime value (sec)",
+    "die_close_core_in_time": "DIE CLOSE/CORE IN Parameter (sec)value",
+    "pouring_time": "POURING-step value (sec)",
+    "shot_fwd_time": "SHOT FWD-step value (sec)",
+    "curing_time": "COOLING-step value (sec)",
+    "die_open_core_out_time": "DIE OPEN/CORE OUT-step value (sec)",
+    "ejector_time": "EJECTOR-step value (sec)",
+    "extract_time": "EXTRACTOR-step value (sec)",
+    "spray_time": "SPRAY-step value (sec)",
+    "v1_speed": "SPEED 1 (m/sec)value",
+    "v2_speed": "SPEED 2 (m/sec)value",
+    "v3_speed": "SPEED 3 (m/sec)value",
+    "v4_speed": "SPEED 4(m/sec)value",
+    "accel_point": "ACC POSITION 1(mm)value",
+    "deaccel_point": "DEACC POSITION 1(mm)value",
+    "intensification_time": "INTESIFICAITON TIME(msec)value",
+    "metal_pressure": "METAL PRESSURE(Mpa)value",
+    "biscuit_thickness": "BISCUIT THICKNESS(mm)value",
+    "clamp_force_pct": "CLAMP FORCE(%)value",
+    "clamp_tonnage": "CLAMP TONNAGE(MN)value",
+    "shot_acc_pressure": "SHOT ACC. PRESSURE value",
+    "intensification_acc_pressure": "INTESIFICAITON ACC. PRESSUREvalue",
+    "furnace_metal_temp": "METAL TEMP.value",
 }
-
 
 MACHINE_IDS = [
     "UBE 850T-1",
@@ -425,6 +418,7 @@ def process_data(
     for param, val in parameters.items():
 
         if param not in PARAM_MAP:
+            # print(param)
             continue
 
         if param not in names_UOM:
@@ -434,6 +428,7 @@ def process_data(
             continue
 
         param_name = names_UOM[param][0]
+        print(param_name)
         uom = names_UOM[param][1]
 
         cur.execute(
@@ -503,7 +498,6 @@ def process_data(
 # ============================================================
 # PROCESS ONE DAY
 # ============================================================
-
 def process_one_day(
     token,
     current_date,
@@ -514,10 +508,11 @@ def process_one_day(
 ):
     """
     Process every API page and every record for one day.
+
+    Commits every 10 successfully stored records.
     """
 
-    print("\n")
-    print("=" * 80)
+    print("\n" + "=" * 80)
     print(f"PROCESSING DATE: {current_date}")
     print("=" * 80)
 
@@ -526,6 +521,13 @@ def process_one_day(
     total_received = 0
     total_processed = 0
     total_failed = 0
+
+    # ========================================================
+    # COMMIT SETTINGS
+    # ========================================================
+
+    COMMIT_EVERY = 10
+    entries_since_commit = 0
 
     while True:
 
@@ -539,16 +541,10 @@ def process_one_day(
             data_path=data_path,
         )
 
-        # ----------------------------------------------------
-        # No rows means pagination is finished
-        # ----------------------------------------------------
-
         if not rows:
-
             print(
                 f"No records returned on page {page}."
             )
-
             break
 
         print(
@@ -559,9 +555,9 @@ def process_one_day(
 
         total_received += len(rows)
 
-        # ----------------------------------------------------
+        # ====================================================
         # PROCESS EVERY ROW
-        # ----------------------------------------------------
+        # ====================================================
 
         for row_number, row in enumerate(
             rows,
@@ -583,10 +579,7 @@ def process_one_day(
             )
 
             # ------------------------------------------------
-            # SAVEPOINT
-            #
-            # If one individual row has bad data, rollback
-            # only that row instead of losing the entire day.
+            # Savepoint for this individual row
             # ------------------------------------------------
 
             cur.execute(
@@ -607,7 +600,47 @@ def process_one_day(
                 )
 
                 if stored:
+
                     total_processed += 1
+                    entries_since_commit += 1
+
+                    # ========================================
+                    # COMMIT EVERY 10 STORED ROWS
+                    # ========================================
+
+                    if entries_since_commit >= COMMIT_EVERY:
+
+                        conn.commit()
+
+                        print(
+                            "\n"
+                            + "-" * 60
+                        )
+
+                        print(
+                            f"[BATCH COMMIT] "
+                            f"{COMMIT_EVERY} records committed"
+                        )
+
+                        print(
+                            f"Date: {current_date}"
+                        )
+
+                        print(
+                            f"Page: {page}"
+                        )
+
+                        print(
+                            f"Total processed so far: "
+                            f"{total_processed}"
+                        )
+
+                        print(
+                            "-" * 60
+                            + "\n"
+                        )
+
+                        entries_since_commit = 0
 
             except Exception as e:
 
@@ -636,12 +669,10 @@ def process_one_day(
 
                 continue
 
-        # ----------------------------------------------------
+        # ====================================================
         # PAGINATION
-        # ----------------------------------------------------
+        # ====================================================
 
-        # Less than PAGE_SIZE normally means this was
-        # the final page.
         if len(rows) < PAGE_SIZE:
 
             print(
@@ -651,6 +682,26 @@ def process_one_day(
             break
 
         page += 1
+
+    # ========================================================
+    # COMMIT REMAINING RECORDS
+    #
+    # Example:
+    #   Last batch only has 27 records.
+    #   We still need to commit those 27.
+    # ========================================================
+
+    if entries_since_commit > 0:
+
+        conn.commit()
+
+        print(
+            f"\n[FINAL BATCH COMMIT] "
+            f"{entries_since_commit} remaining records "
+            f"committed for {current_date}"
+        )
+
+        entries_since_commit = 0
 
     print("-" * 80)
 
@@ -666,7 +717,6 @@ def process_one_day(
         "processed": total_processed,
         "failed": total_failed,
     }
-
 
 # ============================================================
 # MONTHLY BACKFILL
@@ -852,8 +902,7 @@ def update_month(
                 # COMMIT ONCE PER DAY
                 # --------------------------------------------
 
-                conn.commit()
-
+             
                 successful_days += 1
 
                 month_received += (
@@ -1022,7 +1071,199 @@ def store_quality_pred(
             )
         )
 
+def update_date_range(
+    start_date: str,
+    end_date: str,
+):
+    """
+    Backfill a specific inclusive date range.
 
+    Example:
+        update_date_range(
+            "2026-08-12",
+            "2026-08-15"
+        )
+
+    Processes:
+        Aug 12 06:00 -> Aug 13 06:00
+        Aug 13 06:00 -> Aug 14 06:00
+        Aug 14 06:00 -> Aug 15 06:00
+        Aug 15 06:00 -> Aug 16 06:00
+    """
+
+    first_day = datetime.strptime(
+        start_date,
+        "%Y-%m-%d"
+    ).date()
+
+    last_day = datetime.strptime(
+        end_date,
+        "%Y-%m-%d"
+    ).date()
+
+    if first_day > last_day:
+        raise ValueError(
+            "start_date cannot be after end_date"
+        )
+
+    print("\n" + "=" * 80)
+    print("DATE RANGE IoT BACKFILL")
+    print("=" * 80)
+    print(f"From: {first_day}")
+    print(f"To:   {last_day}")
+
+    # --------------------------------------------------------
+    # Authenticate ONCE
+    # --------------------------------------------------------
+
+    print("\nAuthenticating with IoT API...")
+
+    token = get_auth_token()
+
+    print("Authentication successful.")
+
+    # --------------------------------------------------------
+    # Open DB connection ONCE
+    # --------------------------------------------------------
+
+    print("\nConnecting to PostgreSQL...")
+
+    conn = psycopg2.connect(
+        **DB_CONFIG
+    )
+
+    cur = conn.cursor()
+
+    print("Database connection successful.")
+
+    try:
+
+        # ----------------------------------------------------
+        # Get client ID once
+        # ----------------------------------------------------
+
+        cur.execute(
+            """
+            SELECT id_client
+            FROM client
+            WHERE name = %s
+            """,
+            ("Suzuki",)
+        )
+
+        client_result = cur.fetchone()
+
+        if client_result is None:
+            raise ValueError(
+                "Could not find client 'Suzuki'"
+            )
+
+        id_client = client_result[0]
+
+        # ----------------------------------------------------
+        # Get machine ID once
+        # ----------------------------------------------------
+
+        cur.execute(
+            """
+            SELECT id_machine
+            FROM machine
+            WHERE id_client = %s
+            LIMIT 1
+            """,
+            (id_client,)
+        )
+
+        machine_result = cur.fetchone()
+
+        if machine_result is None:
+            raise ValueError(
+                f"No machine found for client {id_client}"
+            )
+
+        id_machine = machine_result[0]
+
+        print(f"Client ID: {id_client}")
+        print(f"Machine ID: {id_machine}")
+
+        current_date = first_day
+
+        total_received = 0
+        total_processed = 0
+        total_failed = 0
+
+        # ====================================================
+        # PROCESS ONLY REQUESTED DAYS
+        # ====================================================
+
+        while current_date <= last_day:
+
+            try:
+
+                result = process_one_day(
+                    token=token,
+                    current_date=current_date,
+                    conn=conn,
+                    cur=cur,
+                    id_client=id_client,
+                    id_machine=id_machine,
+                )
+
+                # Commit every successfully completed day
+                conn.commit()
+
+                total_received += result["received"]
+                total_processed += result["processed"]
+                total_failed += result["failed"]
+
+                print(
+                    f"\nCOMMITTED {current_date}"
+                )
+
+            except Exception as e:
+
+                conn.rollback()
+
+                print(
+                    f"\n[DAY ERROR] {current_date}"
+                )
+
+                print(
+                    f"Error: {e}"
+                )
+
+                print(
+                    f"Rolled back {current_date}"
+                )
+
+            current_date += timedelta(days=1)
+
+    finally:
+
+        cur.close()
+        conn.close()
+
+        print(
+            "\nDatabase connection closed."
+        )
+
+    print("\n" + "=" * 80)
+    print("DATE RANGE BACKFILL COMPLETE")
+    print("=" * 80)
+
+    print(
+        f"Records received: {total_received}"
+    )
+
+    print(
+        f"Records processed: {total_processed}"
+    )
+
+    print(
+        f"Records failed: {total_failed}"
+    )
+
+    print("=" * 80)
 # ============================================================
 # RUN SCRIPT
 # ============================================================
@@ -1034,5 +1275,5 @@ if __name__ == "__main__":
 
     update_month(
         year=2026,
-        month=8,
+        month=9,
     )
