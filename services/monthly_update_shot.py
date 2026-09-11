@@ -428,7 +428,7 @@ def process_data(
             continue
 
         param_name = names_UOM[param][0]
-        print(param_name)
+        # print(param_name)
         uom = names_UOM[param][1]
 
         cur.execute(
