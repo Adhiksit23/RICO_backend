@@ -920,18 +920,6 @@ def update_month(
                 print(
                     f"COMMITTED {current_date}"
                 )
-                # ====================================================
-                # PAUSE EVERY 2 SUCCESSFULLY INGESTED DAYS
-                # ====================================================
-
-                if successful_days == 2:
-                    print("\n" + "=" * 80)
-                    print("FIRST 2 DAYS COMPLETE")
-                    print("Check the database and confirm ingestion looks correct.")
-                    print("Press ENTER to continue with the rest of the month...")
-                    print("=" * 80)
-
-                    input()
 
 
             except Exception as e:
@@ -1275,5 +1263,5 @@ if __name__ == "__main__":
 
     update_month(
         year=2026,
-        month=9,
+        month=8,
     )
