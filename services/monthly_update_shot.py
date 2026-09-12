@@ -570,7 +570,7 @@ def process_one_day(
             page=page,
         )
 
-        rows = get_iot_page(
+        rows, token = get_iot_page(
             token=token,
             data_path=data_path,
         )
