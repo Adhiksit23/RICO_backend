@@ -575,6 +575,9 @@ def process_one_day(
             data_path=data_path,
         )
 
+        print(f"rows type: {type(rows)}")
+        print(rows.get("pagination"))
+        print(rows[0])
         if not rows:
             print(
                 f"No records returned on page {page}."
