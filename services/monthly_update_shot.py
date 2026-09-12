@@ -174,15 +174,10 @@ def build_data_path(
         "&clean=1"
     )
 
-
 def get_iot_page(
     token: str,
     data_path: str,
 ):
-    """
-    Fetch one page from the IoT historical API.
-    """
-
     url = f"{BASE_URL}{data_path}"
 
     headers = {
@@ -203,27 +198,66 @@ def get_iot_page(
         f"API request time: "
         f"{resp.elapsed.total_seconds():.2f}s"
     )
-    
+
+    # ========================================================
+    # TOKEN EXPIRED → REAUTHENTICATE AND RETRY ONCE
+    # ========================================================
+
+    if resp.status_code == 401:
+
+        print(
+            "[AUTH] Token expired or unauthorized."
+        )
+
+        print(
+            "[AUTH] Getting a new token..."
+        )
+
+        token = get_auth_token()
+
+        headers = {
+            "Authorization": f"Bearer {token}"
+        }
+
+        print(
+            "[AUTH] Retrying request with new token..."
+        )
+
+        resp = requests.get(
+            url,
+            headers=headers,
+            timeout=IOT_DATA_TIMEOUT,
+        )
+
+        print(
+            f"Retry status code: {resp.status_code}"
+        )
+
+    # If retry also failed, raise normally
     resp.raise_for_status()
 
     if not resp.text.strip():
-        print("[API ERROR] Response body is empty")
-        return []
+        print("[API ERROR] Empty response")
+        return [], token
 
     try:
         data = resp.json()
 
     except requests.exceptions.JSONDecodeError:
-        print("[API ERROR] Response was not valid JSON")
-        print("Response body:")
-        print(resp.text[:1000])
+
+        print(
+            "[API ERROR] Response was not valid JSON"
+        )
+
+        print(
+            f"Response body: {resp.text[:1000]}"
+        )
+
         raise
 
     rows = data.get("records") or []
 
-    return rows
-
-
+    return rows, token
 # ============================================================
 # DATE PROCESSING
 # ============================================================
@@ -716,6 +750,7 @@ def process_one_day(
         "received": total_received,
         "processed": total_processed,
         "failed": total_failed,
+        "token": token,
     }
 
 # ============================================================
@@ -898,6 +933,7 @@ def update_month(
                     id_machine=id_machine,
                 )
 
+                token = result["token"]
                 # --------------------------------------------
                 # COMMIT ONCE PER DAY
                 # --------------------------------------------
@@ -1261,7 +1297,11 @@ if __name__ == "__main__":
     # Example:
     # Backfill all of August 2026
 
-    update_month(
-        year=2026,
-        month=8,
+    # update_month(
+    #     year=2026,
+    #     month=8,
+    # )
+    update_date_range(
+        start_date="2026-08-06",
+        end_date="2026-08-31",
     )
