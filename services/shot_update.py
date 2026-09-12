@@ -144,7 +144,6 @@ def get_iot_data_shot(token: str, data_path: str) -> None:
         logger.info("[shot_update] No shot rows returned")
         return
     row = rows[0]
-    target_shot = 6671
     # print(rows[0].get("shot_number") == 8754)
     # print(type(rows[0].get("shot_number")))
     # row = next((r for r in rows if r.get("shot_number") == target_shot), None)

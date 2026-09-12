@@ -5,13 +5,9 @@ from . import calibrate_params
 
 logger = logging.getLogger(__name__)
 
-DB_CONFIG = {
-    "host":     "aws-1-ap-southeast-2.pooler.supabase.com",
-    "dbname":   "postgres",
-    "user":     "postgres.nnflwohgewhkqqjfvote",
-    "password": "Datamgnt25!#",
-    "options":  "-c search_path=rico"
-}
+from services.config import (
+    DB_CONFIG
+)
 
 def get_latest_parameters(machine: str = None, die: str = None):
     conn = None
