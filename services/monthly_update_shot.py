@@ -257,6 +257,7 @@ def get_iot_page(
 
     rows = data.get("records") or []
     print("Pagination section of data:", data.get("pagination"))
+    print(f"Number of records is {len(rows)}")
 
     return rows, token
 # ============================================================
@@ -577,7 +578,8 @@ def process_one_day(
         )
 
         print(f"rows type: {type(rows)}")
-        print("First entry: ", rows[0])
+        print(f"Rechecking len of rows to notice change in process_one_day: {len(rows)}")
+        # print("First entry: ", rows[0])
         if not rows:
             print(
                 f"No records returned on page {page}."
