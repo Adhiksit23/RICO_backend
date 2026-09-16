@@ -66,12 +66,6 @@ def main(machine_id, die):
 
     mask = ~df["id_part"].isin(existing_ids)
     df = df[mask]
-    
-
-    # groups = {value: group_df.drop(columns=["id_die"]).reset_index(drop=True)
-    #         for value, group_df in df.groupby("id_die")}
-    # print(groups.keys())
-    # baselines = {}
 
 
     bl_params = {}
