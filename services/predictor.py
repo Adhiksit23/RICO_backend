@@ -211,19 +211,26 @@ def monitor_data(die):
     #Connect to database
     conn = psycopg2.connect(**DB_CONFIG)
 
+    # query = """
+    #     SELECT c.*
+    #     FROM operating_parameter c
+    #     WHERE c.id_part = (
+    #     SELECT id_part FROM part
+    #     WHERE id_die = %s
+    #     ORDER BY manufactored_on DESC
+    #     LIMIT 1
+    # );
+
+    # """
+
     query = """
-        SELECT c.*
-        FROM operating_parameter c
-        WHERE c.id_part = (
-        SELECT id_part FROM part
-        WHERE id_die = %s
-        ORDER BY manufactored_on DESC
-        LIMIT 1
-    );
-
-    """
-
-    df_raw = pd.read_sql(query, conn, params=(die,))
+            SELECT c.*
+            FROM operating_parameter c
+            WHERE c.id_part = %s
+    
+        """
+        
+    df_raw = pd.read_sql(query, conn, params=("0820141521685",))
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
     die_id = df.index.get_level_values("id_die")[0]
@@ -264,19 +271,25 @@ def predictions(die):
     conn = psycopg2.connect(**DB_CONFIG)
     cur  = conn.cursor()
 
+    # query = """
+    #     SELECT c.*
+    #     FROM operating_parameter c
+    #     WHERE c.id_part = (
+    #     SELECT id_part FROM part
+    #     WHERE id_die = %s
+    #     ORDER BY manufactored_on DESC
+    #     LIMIT 1
+    # );
+
+    # """
+    
     query = """
         SELECT c.*
         FROM operating_parameter c
-        WHERE c.id_part = (
-        SELECT id_part FROM part
-        WHERE id_die = %s
-        ORDER BY manufactored_on DESC
-        LIMIT 1
-    );
+        WHERE c.id_part = %s
 
     """
-    print(die)
-    df_raw = pd.read_sql(query, conn, params=(die,))
+    df_raw = pd.read_sql(query, conn, params=("0820141521685",))
     print(df_raw)
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
