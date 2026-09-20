@@ -533,4 +533,4 @@ def main(machine_id, die):
     return
 
 if __name__ == "__main__":
-    main("UBE 850T-2", "S14")
+    main("UBE 850T-2", "S18")
