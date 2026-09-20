@@ -1302,11 +1302,11 @@ if __name__ == "__main__":
     # Example:
     # Backfill all of August 2026
 
-    # update_month(
-    #     year=2026,
-    #     month=7,
-    # )
-    update_date_range(
-        start_date="2026-07-04",
-        end_date="2026-07-30",
+    update_month(
+        year=2026,
+        month=6,
     )
+    # update_date_range(
+    #     start_date="2026-07-04",
+    #     end_date="2026-07-30",
+    # )
