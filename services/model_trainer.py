@@ -53,6 +53,34 @@ PARAM_COLS = [
     "METAL TEMP.value",
 ]
 
+PARAM_MAP = {
+    "cycletime value (sec)": "cycletime value (sec)",
+    "DIE CLOSE/CORE IN Parameter (sec)value": "DIE-CLOSE CORE IN TIME",
+    "POURING-step value (sec)": "POURING TIME",
+    "SHOT FWD-step value (sec)": "SHOT FWD TIME",
+    "COOLING-step value (sec)": "CURING TIME",
+    "DIE OPEN/CORE OUT-step value (sec)": "DIE OPEN CORE OUT TIME",
+    "EJECTOR-step value (sec)": "EJECTOR TIME",
+    "EXTRACTOR-step value (sec)": "EXTRACT TIME",
+    "SPRAY-step value (sec)": "SPRAY TIME",
+    "SPEED 1 (m/sec)value": "V1",
+    "SPEED 2 (m/sec)value": "V2",
+    "SPEED 3 (m/sec)value": "V3",
+    "SPEED 4(m/sec)value": "V4",
+    "ACC POSITION 1(mm)value": "ACCEL. POINT",
+    "DEACC POSITION 1(mm)value": "DEACEL. POINT",
+    "INTESIFICAITON TIME(msec)value": "INTEN. TIME",
+    "MATEL PRESSURE(Mpa)value": "METAL PRESS.",
+    "BISCUIT THICKNESS(mm)value": "BISCUIT THICKNESS",
+    "CLAMP FORCE(%)value": "CLAMP FORCE",
+    "CLAMP TONNAGE(MN)value": "CLAMP TONNAGE",
+    "SHOT ACC. PRESSURE value": "SHOT ACC. PRESSURE",
+    "INTESIFICAITON ACC. PRESSUREvalue": "INTENSIFICATION ACC. PRESSURE",
+    "METAL TEMP.value": "FURNACE METAL TEMP.",
+}
+
+PARAM_MAP_BL = {v: k for k, v in PARAM_MAP.items()}
+
 TARGET_DEFECTS = ["Blow Hole","Crack","Non filling","Porosity","Shrinkage","Chipoff"]
 MODEL_ORDER    = ["Logistic Regression","Gaussian NB","Decision Tree",
                     "Random Forest","LightGBM","XGBoost","Voting Ensemble"]
@@ -195,6 +223,12 @@ def main(machine_id, die):
         ) """
 
     df_baselines = pd.read_sql(query, conn, params=(die, die))
+
+    # Only S14 models include the DIE-CLOSE CORE IN TIME parameter,
+    # keeping feature parity with the older models used by other dies.
+    if die != "S14":
+        df_baselines = df_baselines[df_baselines["parameter_name"] != "DIE-CLOSE CORE IN TIME"]
+
     baselines = {
         r["parameter_name"]: (r["baseline"], r["lower_tolerance"], r["upper_tolerance"])
         for _, r in df_baselines.iterrows()
@@ -205,15 +239,14 @@ def main(machine_id, die):
 
     feat_datasets = {}
     for defect, (d, params) in clean_datasets.items():
-        bl_die = baselines
         feat_rows = []
 
         for _, row in d.iterrows():
-            bl = bl_die
             feats = {}
-            for col, (avg, min_r, max_r) in bl.items():
+            for col, (avg, min_r, max_r) in baselines.items():
+                col_raw = PARAM_MAP_BL[col]
                 val = pd.to_numeric(row.get(col, np.nan), errors="coerce")
-                cn  = safe_cn(col)
+                cn  = safe_cn(col_raw)
                 if pd.isna(val):
                     feats[f"{cn}_inrange"] = 0
                     feats[f"{cn}_pctdev"]  = 0.0
@@ -311,7 +344,7 @@ def main(machine_id, die):
             scaler
         ) in splits_pca.items():
 
-        print(f"\n── {defect} {'─'*(50-len(defect))}")
+        print(f"\n-- {defect} {'-'*(50-len(defect))}")
 
         # =========================================================
         # Convert labels to numerical multi-dimensional form
@@ -443,7 +476,7 @@ def main(machine_id, die):
 
                 # ── Text output — confusion matrix + report ────────────────────
                 print(f"\n  {name}")
-                print(f"  {'─'*45}")
+                print(f"  {'-'*45}")
                 print(f"  Best Threshold: {t}")
                 print(f"  Confusion Matrix:")
                 print(f"  [[{tn}  {fp}]")
@@ -469,7 +502,7 @@ def main(machine_id, die):
         fn_probs   = p_te_arr[fn_mask]
 
         print(f"\n  {defect}")
-        print(f"  {'─'*45}")
+        print(f"  {'-'*45}")
         print(f"  False Positives : {fp_mask.sum():4}  |  Avg prob = {fp_probs.mean():.4f}  |  Min = {fp_probs.min():.4f}  |  Max = {fp_probs.max():.4f}" if fp_mask.sum() > 0 else f"  False Positives : 0")
         print(f"  False Negatives : {fn_mask.sum():4}  |  Avg prob = {fn_probs.mean():.4f}  |  Min = {fn_probs.min():.4f}  |  Max = {fn_probs.max():.4f}" if fn_mask.sum() > 0 else f"  False Negatives : 0")
 
@@ -479,12 +512,12 @@ def main(machine_id, die):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     print("=" * 65)
-    print(f"SAVING VOTING MODELS — date: {_today}")
+    print(f"SAVING VOTING MODELS - date: {_today}")
     print("=" * 65)
 
     for defect, trained in all_trained.items():
         if "Voting Ensemble" not in trained:
-            print(f"  ⚠️  {defect}: no Voting Ensemble — skip")
+            print(f"  !! {defect}: no Voting Ensemble - skip")
             continue
 
         voter_model, _, _, threshold = trained["Voting Ensemble"]
@@ -512,19 +545,19 @@ def main(machine_id, die):
         print("PCA components:", pca.n_components_)
         print("CCA expects:", cca.n_features_in_)
 
-        tag   = defect.replace(" ", "_")
-        die_dir  = os.path.join(OUTPUT_DIR, die)
+        tag    = defect.replace(" ", "_")
+        die_dir = os.path.join(OUTPUT_DIR, die)
         os.makedirs(die_dir, exist_ok=True)
         fname = f"{die}_{tag}_{_today}_voting.pkl"
         fpath = os.path.join(die_dir, fname)
         with open(fpath, "wb") as fh:
             pickle.dump(save_obj, fh)
-        print(f"  ✅ {fname}")
+        print(f"  OK {fname}")
 
     print(f"\nAll voting models saved to: {OUTPUT_DIR}")
     print(f"Naming: {{die}}_{{defect}}_{{YYYYMMDD}}_voting.pkl")
     print(f"\nTo load and predict:")
-    print(f"  obj = pickle.load(open('Blow_Hole_YYYYMMDD_voting.pkl','rb'))")
+    print(f"  obj = pickle.load(open('S14_Blow_Hole_YYYYMMDD_voting.pkl','rb'))")
     print(f"  X_scaled = obj['scaler'].transform(X_raw)")
     print(f"  X_pca    = obj['pca'].transform(X_scaled)")
     print(f"  X_cca    = obj['cca'].transform(X_pca)")

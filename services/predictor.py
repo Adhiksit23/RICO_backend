@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import warnings, re, os
+import warnings, re, os, glob
 from sklearn.linear_model    import LogisticRegression
 try:
     from lightgbm import LGBMClassifier
@@ -211,26 +211,26 @@ def monitor_data(die):
     #Connect to database
     conn = psycopg2.connect(**DB_CONFIG)
 
-    # query = """
-    #     SELECT c.*
-    #     FROM operating_parameter c
-    #     WHERE c.id_part = (
-    #     SELECT id_part FROM part
-    #     WHERE id_die = %s
-    #     ORDER BY manufactored_on DESC
-    #     LIMIT 1
-    # );
-
-    # """
-
     query = """
-            SELECT c.*
-            FROM operating_parameter c
-            WHERE c.id_part = %s
+        SELECT c.*
+        FROM operating_parameter c
+        WHERE c.id_part = (
+        SELECT id_part FROM part
+        WHERE id_die = %s
+        ORDER BY manufactored_on DESC
+        LIMIT 1
+    );
+
+    """
+
+    # query = """
+    #         SELECT c.*
+    #         FROM operating_parameter c
+    #         WHERE c.id_part = %s
     
-        """
+    #     """
         
-    df_raw = pd.read_sql(query, conn, params=("0820141521685",))
+    df_raw = pd.read_sql(query, conn, params=(die,))
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
     die_id = df.index.get_level_values("id_die")[0]
@@ -265,32 +265,48 @@ def monitor_data(die):
 
     return [last_params, baselines_full]
 
+def latest_model_path(die, defect):
+    tag = defect.replace(" ", "_")
+    if die == "S14":
+        die_dir = os.path.join("models", die)
+        matches = glob.glob(os.path.join(die_dir, f"{die}_{tag}_*_voting.pkl"))
+        if not matches:
+            return None
+
+        def _date(m):
+            mm = re.search(r"_(\d{8})_voting\.pkl$", os.path.basename(m))
+            return mm.group(1) if mm else "00000000"
+
+        return max(matches, key=_date)
+    return os.path.join("models", f"{tag}_20260605_voting.pkl")
+
+
 def predictions(die):
 
     #Connect to database
     conn = psycopg2.connect(**DB_CONFIG)
     cur  = conn.cursor()
 
-    # query = """
-    #     SELECT c.*
-    #     FROM operating_parameter c
-    #     WHERE c.id_part = (
-    #     SELECT id_part FROM part
-    #     WHERE id_die = %s
-    #     ORDER BY manufactored_on DESC
-    #     LIMIT 1
-    # );
-
-    # """
-    
     query = """
         SELECT c.*
         FROM operating_parameter c
-        WHERE c.id_part = %s
+        WHERE c.id_part = (
+        SELECT id_part FROM part
+        WHERE id_die = %s
+        ORDER BY manufactored_on DESC
+        LIMIT 1
+    );
 
     """
-    df_raw = pd.read_sql(query, conn, params=("0820141521685",))
-    print(df_raw)
+    
+    # query = """
+    #     SELECT c.*
+    #     FROM operating_parameter c
+    #     WHERE c.id_part = %s
+
+    # """
+    df_raw = pd.read_sql(query, conn, params=(die,))
+    # print(df_raw)
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
     # id_part = df.index.get_level_values("id_part")[0]
@@ -313,9 +329,11 @@ def predictions(die):
 
     """
     df_baselines = pd.read_sql(query, conn, params=(die,die))
-    
-    #Temporary, will be removed after retraining model to so that it uses all parameters rather than having remove conditions
-    df_baselines = df_baselines[df_baselines["parameter_name"] != "DIE-CLOSE CORE IN TIME"]
+
+    # Only S14 models include the DIE-CLOSE CORE IN TIME parameter;
+    # other dies still run on the older models that omitted it.
+    if die != "S14":
+        df_baselines = df_baselines[df_baselines["parameter_name"] != "DIE-CLOSE CORE IN TIME"]
 
     baselines = df_baselines.set_index('parameter_name').to_dict(orient='index')
     
@@ -346,10 +364,13 @@ def predictions(die):
 
     pred_results = []
     #print("Going to model")
-    # Use latest model for each die, 
+    # Use latest model for each die (S14 only picks the newest trained model)
     for defect in TARGET_DEFECTS:
-        defect_tag   = defect.replace(" ", "_")
-        model_path = os.path.join('.', 'models', f'{defect_tag}_20260605_voting.pkl')
+        model_path = latest_model_path(die, defect)
+        if model_path is None:
+            print(f"[predictions] No S14 model found for defect={defect}")
+            pred_results.append(0.0)
+            continue
         model = pickle.load(open(model_path, 'rb'))
         df_input = feat_datasets[defect][model['scaler'].feature_names_in_]
         X_scaled = model['scaler'].transform(df_input)
