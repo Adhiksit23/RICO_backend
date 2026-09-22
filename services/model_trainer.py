@@ -22,6 +22,8 @@ from sklearn.preprocessing   import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics         import (confusion_matrix, classification_report,
                                      ConfusionMatrixDisplay, fbeta_score)
+
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "models")
 from .config import DB_CONFIG
@@ -84,6 +86,12 @@ PARAM_MAP_BL = {v: k for k, v in PARAM_MAP.items()}
 TARGET_DEFECTS = ["Blow Hole","Crack","Non filling","Porosity","Shrinkage","Chipoff"]
 MODEL_ORDER    = ["Logistic Regression","Gaussian NB","Decision Tree",
                     "Random Forest","LightGBM","XGBoost","Voting Ensemble"]
+
+REPORT_LINES = []
+def rprint(*args):
+    line = " ".join(str(a) for a in args)
+    REPORT_LINES.append(line)
+    print(line)
 
 def safe_cn(col):
     return re.sub(r"[^a-zA-Z0-9]", "_", str(col)).strip("_").replace("__", "_")
@@ -233,8 +241,9 @@ def main(machine_id, die):
         r["parameter_name"]: (r["baseline"], r["lower_tolerance"], r["upper_tolerance"])
         for _, r in df_baselines.iterrows()
     }
-    print(f"\nBaselines loaded for die {die}: {len(baselines)} params")
-
+    rprint(f"\nBaselines loaded for die {die}: {len(baselines)} params")
+    rprint(f"\nBaselines loaded for die {die}: {baselines}")
+    
     clean_datasets = {defect: (df_data, PARAM_COLS) for defect in TARGET_DEFECTS}
 
     feat_datasets = {}
@@ -301,9 +310,19 @@ def main(machine_id, die):
 
         splits[defect] = (X_tr, X_te, y_tr, y_te, FC, scaler)
 
+        rprint(f"\n  {defect}:")
+        rprint(f"    Total balanced: {n_defects} defects + {n_defects} good = {n_defects*2} rows")
+        rprint(f"    Train (70%): {y_tr.sum()} defects + {(y_tr==0).sum()} good = {len(y_tr)} rows")
+        rprint(f"    Test  (30%): {y_te.sum()} defects + {(y_te==0).sum()} good = {len(y_te)} rows")
+        rprint(f"    Train defect rate: {y_tr.mean()*100:.1f}%")
+
     # ── PCA per defect → train all models ─────────────────────────────────────
     splits_pca = {}
 
+
+    rprint("=" * 65)
+    rprint("PCA — Optimal Components Per Defect")
+    rprint("=" * 65)
 
     for defect, (X_tr, X_te, y_tr, y_te, FC, scaler) in splits.items():
 
@@ -314,7 +333,8 @@ def main(machine_id, die):
 
         # ── Find optimal n_components using training data only ────────────────
         n_comp = get_pca_component(X_tr_arr)
-        
+        rprint(f"  Optimal PCA components for {defect}: {n_comp}")
+
         # ── Fit PCA on train, transform both train and test ───────────────────
         pca = PCA(n_components=n_comp, random_state=42)
         X_tr_pca = pca.fit_transform(X_tr_arr)
@@ -324,15 +344,21 @@ def main(machine_id, die):
         X_tr_pca_df = pd.DataFrame(X_tr_pca, columns=pca_cols)
         X_te_pca_df = pd.DataFrame(X_te_pca, columns=pca_cols)
 
-        print(f"  Shape: {X_tr_arr.shape} -> train {X_tr_pca_df.shape} | test {X_te_pca_df.shape}")
-
+        rprint(
+            f"  Raw train: {X_tr_arr.shape} | Raw test: {X_te_arr.shape} "
+            f"-> PCA train: {X_tr_pca_df.shape} | PCA test: {X_te_pca_df.shape}"
+        )
         y_tr_reset = y_tr.reset_index(drop=True)
         y_te_reset = y_te.reset_index(drop=True)
 
         splits_pca[defect] = (X_tr_pca_df, X_te_pca_df, y_tr_reset, y_te_reset, pca, pca_cols, scaler)
-
+    rprint("\n✅ PCA splits ready for all defects — use splits_pca instead of splits")
         
     splits_pca_cca = {}
+
+    rprint("=" * 65)
+    rprint("Canonical Correlation Per Defect")
+    rprint("=" * 65)
 
     for defect, (
             X_tr_pca_df,
@@ -432,13 +458,17 @@ def main(machine_id, die):
 
     for defect, (X_tr, X_te, y_tr, y_te, FC, scaler, pca, cca) in splits_pca_cca.items():
         n_pos = int(y_tr.sum()); n_neg = int((y_tr==0).sum())
-       
+        rprint(f"\n{'='*65}")
+        rprint(f"DEFECT: {defect}  |  Train: {n_pos} pos + {n_neg} neg (1:1 balanced)")
+        rprint(f"{'='*65}")
+
         trained = {}
         for name, model in get_models(n_pos, n_neg).items():
             model.fit(X_tr, y_tr)
             p_te = model.predict_proba(X_te)[:,1]
             t = best_threshold(y_te, p_te)
             trained[name] = (model, p_te, y_te, t)
+            rprint(f"  ✓ {name:22}  threshold={t:.2f}")
           
         voter = VotingClassifier(estimators=[
             ("lr",   LogisticRegression(max_iter=1000,C=0.1,random_state=42)),
@@ -456,33 +486,57 @@ def main(machine_id, die):
         p_v = voter.predict_proba(X_te)[:,1]
         t_v = best_threshold(y_te, p_v)
         trained["Voting Ensemble"] = (voter, p_v, y_te, t_v)
+        rprint(f"  ✓ {'Voting Ensemble':22}  threshold={t_v:.2f}")
         all_trained[defect] = trained
 
-        for defect, trained in all_trained.items():
+    rprint(f"\n✅ Training complete: {list(all_trained.keys())}")
 
-            n_models = len(trained)
-            n_cols = 4; n_rows = (n_models + n_cols - 1) // n_cols
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=(5*n_cols, 4.5*n_rows))
-            axes = np.array(axes).flatten()
+    # --------- Classification Report and Confusion Matrix----------------
+    for defect, trained in all_trained.items():
+        rprint(f"\n{'#'*65}")
+        rprint(f"RESULTS — {defect}")
+        rprint(f"{'#'*65}")
+        n_models = len(trained)
 
-            for ax_i, name in enumerate(MODEL_ORDER):
-                if name not in trained: continue
-                model, p_te, y_te, t = trained[name]
-                y_pred = (p_te >= t).astype(int)
-                cm     = confusion_matrix(y_te, y_pred, labels=[0,1])
-                tn, fp, fn, tp = cm.ravel()
-                rec = tp / max(tp+fn, 1)
-                far = fp / max(tn+fp, 1)
+        n_cols = 4; n_rows = (n_models + n_cols - 1) // n_cols
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5*n_cols, 4.5*n_rows))
+        axes = np.array(axes).flatten()
 
-                # ── Text output — confusion matrix + report ────────────────────
-                print(f"\n  {name}")
-                print(f"  {'-'*45}")
-                print(f"  Best Threshold: {t}")
-                print(f"  Confusion Matrix:")
-                print(f"  [[{tn}  {fp}]")
-                print(f"   [{fn}   {tp}]]")
-                print(classification_report(y_te, y_pred, zero_division=0,
-                                            target_names=["Good", defect]))
+        for ax_i, name in enumerate(MODEL_ORDER):
+            if name not in trained: continue
+            model, p_te, y_te, t = trained[name]
+            y_pred = (p_te >= t).astype(int)
+            cm     = confusion_matrix(y_te, y_pred, labels=[0,1])
+            tn, fp, fn, tp = cm.ravel()
+            rec = tp / max(tp+fn, 1)
+            far = fp / max(tn+fp, 1)
+
+            # ── Text output — confusion matrix + report ────────────────────
+            rprint(f"\n  {name}")
+            rprint(f"  {'-'*45}")
+            rprint(f"  Best Threshold: {t}")
+            rprint(f"  Confusion Matrix:")
+            rprint(f"  [[{tn}  {fp}]")
+            rprint(f"   [{fn}   {tp}]]")
+            rprint(classification_report(y_te, y_pred, zero_division=0,
+                                        target_names=["Good", defect]))
+                # ── Plot ───────────────────────────────────────────────────────
+            disp = ConfusionMatrixDisplay(cm, display_labels=["Good", defect[:10]])
+            disp.plot(ax=axes[ax_i], colorbar=False, cmap="Blues")
+            axes[ax_i].set_title(
+                f"{name}\nt={t} | Recall={rec:.3f} | FAR={far*100:.1f}%\n"
+                f"Caught={tp}/{int(y_te.sum())}",
+                fontsize=7.5, fontweight="bold")
+
+        for i in range(len(trained), len(axes)):
+            axes[i].set_visible(False)
+
+        plt.suptitle(f"Confusion Matrices — {defect}", fontsize=12, fontweight="bold")
+        plt.tight_layout()
+        cm_path = os.path.join(OUTPUT_DIR, f"CM_{defect.replace(' ','_')}.png")
+        plt.savefig(cm_path, dpi=100, bbox_inches="tight")
+        # plt.show()
+        print(f"  Saved: {os.path.basename(cm_path)}")
 
     for defect, trained in all_trained.items():
         if "Voting Ensemble" not in trained:
@@ -507,8 +561,14 @@ def main(machine_id, die):
         print(f"  False Negatives : {fn_mask.sum():4}  |  Avg prob = {fn_probs.mean():.4f}  |  Min = {fn_probs.min():.4f}  |  Max = {fn_probs.max():.4f}" if fn_mask.sum() > 0 else f"  False Negatives : 0")
 
 
-    _today = _date_cls.today().strftime("%Y%m%d")
+    txt_path = os.path.join(OUTPUT_DIR, "results_report.txt")
+    with open(txt_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(REPORT_LINES))
+    print(f"Text report saved: results_report.txt  ({len(REPORT_LINES)} lines)")
 
+
+
+    _today = _date_cls.today().strftime("%Y%m%d")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     print("=" * 65)
@@ -550,12 +610,12 @@ def main(machine_id, die):
         os.makedirs(die_dir, exist_ok=True)
         fname = f"{die}_{tag}_{_today}_voting.pkl"
         fpath = os.path.join(die_dir, fname)
-        with open(fpath, "wb") as fh:
-            pickle.dump(save_obj, fh)
+        # with open(fpath, "wb") as fh:
+        #     pickle.dump(save_obj, fh)
         print(f"  OK {fname}")
 
     print(f"\nAll voting models saved to: {OUTPUT_DIR}")
-    print(f"Naming: {{die}}_{{defect}}_{{YYYYMMDD}}_voting.pkl")
+    print(f"Naming: {die}_{defect}_{_today}_voting.pkl")
     print(f"\nTo load and predict:")
     print(f"  obj = pickle.load(open('S14_Blow_Hole_YYYYMMDD_voting.pkl','rb'))")
     print(f"  X_scaled = obj['scaler'].transform(X_raw)")
@@ -566,4 +626,4 @@ def main(machine_id, die):
     return
 
 if __name__ == "__main__":
-    main("UBE 850T-2", "S18")
+    main("UBE 850T-2", "S14")
