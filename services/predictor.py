@@ -268,7 +268,7 @@ def monitor_data(die):
 
 def latest_model_path(die, defect):
     tag = defect.replace(" ", "_")
-    if die == "S14":
+    if die != "S16":
         die_dir = os.path.join("models", die)
         matches = glob.glob(os.path.join(die_dir, f"{die}_{tag}_*_voting.pkl"))
         if not matches:
