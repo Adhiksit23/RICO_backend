@@ -272,7 +272,7 @@ def latest_model_path(die, defect):
         die_dir = os.path.join("models", die)
         matches = glob.glob(os.path.join(die_dir, f"{die}_{tag}_*_voting.pkl"))
         if not matches:
-            return None
+            return os.path.join("models", f"{tag}_20260605_voting.pkl")
 
         def _date(m):
             mm = re.search(r"_(\d{8})_voting\.pkl$", os.path.basename(m))
