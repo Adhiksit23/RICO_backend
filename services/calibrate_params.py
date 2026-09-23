@@ -78,7 +78,7 @@ def main(machine_id, die):
         if(num_samples == 0):   
             num_samples = len(vals)
         avg = vals.mean()
-        tol = max((vals - avg).abs().mean() * 3, 1e-9)
+        tol = max((vals - avg).abs().mean(), 1e-9)
         if param in bl_params:
             prev_avg, prev_tol, _, _, _= bl_params[param]
             new_avg = (prev_avg + avg) / 2

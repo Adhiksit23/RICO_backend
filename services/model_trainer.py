@@ -610,8 +610,8 @@ def main(machine_id, die):
         os.makedirs(die_dir, exist_ok=True)
         fname = f"{die}_{tag}_{_today}_voting.pkl"
         fpath = os.path.join(die_dir, fname)
-        # with open(fpath, "wb") as fh:
-        #     pickle.dump(save_obj, fh)
+        with open(fpath, "wb") as fh:
+            pickle.dump(save_obj, fh)
         print(f"  OK {fname}")
 
     print(f"\nAll voting models saved to: {OUTPUT_DIR}")
@@ -626,4 +626,4 @@ def main(machine_id, die):
     return
 
 if __name__ == "__main__":
-    main("UBE 850T-2", "S14")
+    main("UBE 850T-2", "S16")

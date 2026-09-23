@@ -231,6 +231,7 @@ def monitor_data(die):
     #     """
         
     df_raw = pd.read_sql(query, conn, params=(die,))
+    # df_raw = pd.read_sql(query, conn, params=("0817235929978",))
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
     die_id = df.index.get_level_values("id_die")[0]
@@ -305,7 +306,9 @@ def predictions(die):
     #     WHERE c.id_part = %s
 
     # """
+
     df_raw = pd.read_sql(query, conn, params=(die,))
+    # df_raw = pd.read_sql(query, conn, params=("0817235929978",))
     # print(df_raw)
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
@@ -368,9 +371,10 @@ def predictions(die):
     for defect in TARGET_DEFECTS:
         model_path = latest_model_path(die, defect)
         if model_path is None:
-            print(f"[predictions] No S14 model found for defect={defect}")
+            print(f"[predictions] No model found for defect={defect} and die={die}")
             pred_results.append(0.0)
             continue
+        print(model_path)
         model = pickle.load(open(model_path, 'rb'))
         df_input = feat_datasets[defect][model['scaler'].feature_names_in_]
         X_scaled = model['scaler'].transform(df_input)
