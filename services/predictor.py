@@ -268,7 +268,7 @@ def monitor_data(die):
 
 def latest_model_path(die, defect):
     tag = defect.replace(" ", "_")
-    if die != "S16":
+    if die == "S14" or die == "S17":
         die_dir = os.path.join("models", die)
         matches = glob.glob(os.path.join(die_dir, f"{die}_{tag}_*_voting.pkl"))
         if not matches:
@@ -374,7 +374,7 @@ def predictions(die):
             print(f"[predictions] No model found for defect={defect} and die={die}")
             pred_results.append(0.0)
             continue
-        print(model_path)
+        # print(model_path)
         model = pickle.load(open(model_path, 'rb'))
         df_input = feat_datasets[defect][model['scaler'].feature_names_in_]
         X_scaled = model['scaler'].transform(df_input)
