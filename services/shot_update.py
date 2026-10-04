@@ -199,7 +199,7 @@ def process_data_shot(data: dict) -> None:
 
         cur.execute(
             """
-            INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at)
+            INSERT INTO part_duplicate (id_part, id_die, id_client, id_machine, manufactored_on, created_at)
             VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT (id_part) DO UPDATE SET
                 id_die = EXCLUDED.id_die,
@@ -213,13 +213,13 @@ def process_data_shot(data: dict) -> None:
         for param, val in data.items():
             if param not in PARAM_MAP:
                 continue
-            param_name = names_UOM[param][0]
+            param_name = param
             param_lower_tolerance = data.get(f"{param}_lower_limit") or 0
             param_upper_tolerance = data.get(f"{param}_upper_limit") or 0
             uom = names_UOM[param][1]
             cur.execute(
                 """
-                INSERT INTO operating_parameter (
+                INSERT INTO operating_parameter_duplicate (
                     id_part, id_die, id_client, id_machine, parameter_name, "UOM", value,
                     recomended_lower_tolerance, recomended_upper_tolerance, created_at, updated_at
                 )

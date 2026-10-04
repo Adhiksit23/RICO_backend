@@ -111,7 +111,7 @@ def get_models(n_pos, n_neg):
     return {
         "Logistic Regression": LogisticRegression(
             max_iter=1000, C=0.1, random_state=42),
-        #"Gaussian NB" : GaussianNB(),
+        # "Gaussian NB" : GaussianNB(),
         # "Decision Tree": DecisionTreeClassifier(
         #     max_depth=5, random_state=42),
         "Random Forest": RandomForestClassifier(
@@ -124,6 +124,59 @@ def get_models(n_pos, n_neg):
             n_estimators=400, learning_rate=0.05, max_depth=5,
             random_state=42, eval_metric="logloss", verbosity=0),
     }
+
+
+def plot_voting_confusion_matrices(all_trained, die, out_root=OUTPUT_DIR):
+    """Plot the voting-ensemble confusion matrix of every defect into a single
+    file and save it under models/<die>/ .
+
+    Parameters
+    ----------
+    all_trained : dict  {defect: {model_name: (model, p_te, y_te, t)}}
+    die         : str   die id, used both for the plot title and the folder.
+    out_root    : str   models root directory (defaults to OUTPUT_DIR).
+    """
+    defects = [d for d, t in all_trained.items() if "Voting Ensemble" in t]
+    if not defects:
+        rprint("  !! no Voting Ensemble models to plot")
+        return
+
+    n = len(defects)
+    n_cols = 3
+    n_rows = int(np.ceil(n / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4.5 * n_rows))
+    axes = np.array(axes).flatten()
+
+    for i, defect in enumerate(defects):
+        _, p_te, y_te, t = all_trained[defect]["Voting Ensemble"]
+        y_pred = (p_te >= t).astype(int)
+        cm = confusion_matrix(y_te, y_pred, labels=[0, 1])
+        tn, fp, fn, tp = cm.ravel()
+        rec = tp / max(tp + fn, 1)
+        far = fp / max(tn + fp, 1)
+
+        disp = ConfusionMatrixDisplay(cm, display_labels=["Good", defect[:10]])
+        disp.plot(ax=axes[i], colorbar=False, cmap="Blues")
+        axes[i].set_title(
+            f"{defect}\nt={t} | Recall={rec:.3f} | FAR={far*100:.1f}%\n"
+            f"Caught={tp}/{int(y_te.sum())}",
+            fontsize=7.5, fontweight="bold")
+
+    for i in range(n, len(axes)):
+        axes[i].set_visible(False)
+
+    plt.suptitle(f"Voting Ensemble — Confusion Matrices (die {die})",
+                 fontsize=12, fontweight="bold")
+    plt.tight_layout()
+
+    die_dir = os.path.join(out_root, die)
+    os.makedirs(die_dir, exist_ok=True)
+    path = os.path.join(die_dir, "CM_voting_all_defects.png")
+    plt.savefig(path, dpi=100, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {os.path.basename(path)} ({path})")
+
+
 def main(machine_id, die):
 
     conn = psycopg2.connect(**DB_CONFIG)
@@ -490,6 +543,8 @@ def main(machine_id, die):
         all_trained[defect] = trained
 
     rprint(f"\n✅ Training complete: {list(all_trained.keys())}")
+
+    plot_voting_confusion_matrices(all_trained, die)
 
     # --------- Classification Report and Confusion Matrix----------------
     for defect, trained in all_trained.items():

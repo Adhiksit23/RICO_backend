@@ -12,3 +12,4 @@ Canonical Correlation Per Defect
 =================================================================
 
 ✅ Training complete: []
+  !! no Voting Ensemble models to plot

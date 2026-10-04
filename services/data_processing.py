@@ -77,7 +77,7 @@ def store_defect(cur, row, id_client, id_machine):
     # """, (part_id, id_die, id_client, category, zone, sub_zone, view, id_machine, defect))
 
     cur.execute("""
-    INSERT INTO part_quality (id_part, id_die, id_client, updated_at, category, zone, sub_zone, view, id_machine, defect_type)
+    INSERT INTO part_quality_duplicate (id_part, id_die, id_client, updated_at, category, zone, sub_zone, view, id_machine, defect_type)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (id_part) DO UPDATE SET
         id_die = EXCLUDED.id_die,
@@ -139,7 +139,7 @@ def process_data(data):
     print(id_machine)
 
     cur.execute("""
-        INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at)
+        INSERT INTO part_duplicate (id_part, id_die, id_client, id_machine, manufactored_on, created_at)
         VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (id_part) DO UPDATE SET
             id_die = EXCLUDED.id_die,
@@ -151,11 +151,11 @@ def process_data(data):
     for param, val in data['shot']['parameters'].items():
         if(param not in PARAM_MAP):
             continue
-        param_name = names_UOM[param][0]
-        
+        param_name = param
         uom = names_UOM[param][1]
+        
         cur.execute("""
-                INSERT INTO operating_parameter (id_part, id_die, id_client, id_machine, parameter_name, "UOM", value, created_at, updated_at)
+                INSERT INTO operating_parameter_duplicate (id_part, id_die, id_client, id_machine, parameter_name, "UOM", value, created_at, updated_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id_part, parameter_name) DO UPDATE SET
                     id_die = EXCLUDED.id_die,
