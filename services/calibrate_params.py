@@ -44,7 +44,7 @@ def main(machine_id, die):
     #Adjusts so that it takes for specific die and machine
     query = """
         SELECT c.*
-        FROM operating_parameter c
+        FROM operating_parameter_duplicate c
         WHERE id_part IN (
             SELECT id_part FROM part
             WHERE id_die = %s and id_machine = %s
@@ -59,7 +59,7 @@ def main(machine_id, die):
     df.columns.name = None
     df = df.reset_index()   
 
-    cur.execute("SELECT id_part FROM part_quality")
+    cur.execute("SELECT id_part FROM part_quality_duplicate") #Need to make it use specific die only
     existing_ids = {row[0] for row in cur.fetchall()}
 
     conn.close()
@@ -69,7 +69,6 @@ def main(machine_id, die):
 
 
     bl_params = {}
-    # sub = groups[die]
     sub = df[df["id_die"] == die].drop(columns=["id_die"]).reset_index(drop=True)
     for param in param_names:
         if param not in sub.columns:
@@ -90,7 +89,7 @@ def main(machine_id, die):
         uom = names_UOM.get(param, ["Unknown", ""])[1]
         
         bl_params[param] = (new_avg, new_tol, max(0, new_avg - new_tol), new_avg + new_tol, uom)
-             
+    print("Ranges calculated: ", bl_params)
     print("Number of samples used for calculation: ", num_samples) 
     return [bl_params, num_samples]
 

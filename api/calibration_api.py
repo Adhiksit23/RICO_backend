@@ -119,7 +119,7 @@ def apply_new_calibration(
             detail="No calibration data provided in request body.",
         )
 
-    if samples_analyzed is None or samples_analyzed <= 50:
+    if samples_analyzed is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"num_samples must be greater than 50, got {samples_analyzed}",
