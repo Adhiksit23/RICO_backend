@@ -28,22 +28,29 @@ def predict(die: str):
     Run defect probability prediction for a given die.
     Returns probabilities (0–100%) for each defect type.
     """
-    try:
-        prediction = predictions(die)  # single call — result reused below
-    except Exception as exc:
-        logger.exception("[/predict] Failed to generate prediction for die=%s", die)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Prediction failed for die '{die}': {str(exc)}",
-        ) from exc
+    # try:
+    #     prediction = predictions(die)  # single call — result reused below
+    # except Exception as exc:
+    #     logger.exception("[/predict] Failed to generate prediction for die=%s", die)
+    #     raise HTTPException(
+    #         status_code=500,
+    #         detail=f"Prediction failed for die '{die}': {str(exc)}",
+    #     ) from exc
 
-    return {
-        "blowhole":    round(prediction[0] * 100, 2),
-        "crack":       round(prediction[1] * 100, 2),
-        "non_filling": round(prediction[2] * 100, 2),
-        "porosity":    round(prediction[3] * 100, 2),
-        "shrinkage":   round(prediction[4] * 100, 2),
-        "chipoff":     round(prediction[5] * 100, 2),
+    # return {
+    #     "blowhole":    round(prediction[0] * 100, 2),
+    #     "crack":       round(prediction[1] * 100, 2),
+    #     "non_filling": round(prediction[2] * 100, 2),
+    #     "porosity":    round(prediction[3] * 100, 2),
+    #     "shrinkage":   round(prediction[4] * 100, 2),
+    #     "chipoff":     round(prediction[5] * 100, 2),
+    # }
+    return { "blowhole":   0,
+        "crack":       0,
+        "non_filling": 0,
+        "porosity":    0,
+        "shrinkage":   0,
+        "chipoff":     0,
     }
 
 

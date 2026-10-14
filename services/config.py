@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 # ─── Database Configuration ──────────────────────────────────────────
 DB_CONFIG = {
-    "host":     os.environ.get("DB_HOST", "aws-1-ap-southeast-2.pooler.supabase.com"),
+    "host":     os.environ.get("DB_HOST", ""),
+    "port":     int(os.environ.get("DB_PORT", "5432")),
     "dbname":   os.environ.get("DB_NAME", "postgres"),
     "user":     os.environ.get("DB_USER", ""),
     "password": os.environ.get("DB_PASSWORD", ""),

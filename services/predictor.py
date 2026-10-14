@@ -57,7 +57,7 @@ PARAM_MAP = {
     "DIE CLOSE/CORE IN Parameter (sec)value": "DIE-CLOSE CORE IN TIME",
     "POURING-step value (sec)": "POURING TIME",
     "SHOT FWD-step value (sec)": "SHOT FWD TIME",
-    "COOLING-step value (sec)": "CURING TIME",  # verify this one
+    "COOLING-step value (sec)": "CURING TIME",  
     "DIE OPEN/CORE OUT-step value (sec)": "DIE OPEN CORE OUT TIME",
     "EJECTOR-step value (sec)": "EJECTOR TIME",
     "EXTRACTOR-step value (sec)": "EXTRACT TIME",
@@ -124,8 +124,8 @@ def update_date_path() -> str:
     date_from =  date.today().strftime("%Y-%m-%dT06:00:00")
     date_to =  (date.today() + timedelta(days=1)).strftime("%Y-%m-%dT06:00:00")
 
-    # date_from = "2026-07-16T00:00:00"
-    # date_to = "2026-07-16T12:00:00"
+    # date_from = "2026-10-01T06:00:00"
+    # date_to = "2026-10-12T06:00:00"
     data_path = f"/reports/report/historical?dateFrom={date_from}&dateTo={date_to}&page={PAGE}&pageSize={PAGE_SIZE}&partCategory=HPDC&clean=1"
     return data_path
 
@@ -165,11 +165,12 @@ def get_iot_data(token: str, data_path):
     if not rows:
         print("[defect_update] No rows returned")
         return
+    
     row = rows[0]
-    # target_shot = 6671
+    # target_shot = 5972
     # row = next((r for r in rows if (r.get("shot").get("number")  == target_shot) and (r.get("rejection").get("reason") != None)), None)
     # if row is None:
-    #     print(f"[shot_update] No row with shot_number=%s", target_shot)
+    #     print(f"[shot_update] No row with shot_number= {target_shot}")
     #     return
     
     process_data(row)
@@ -193,15 +194,8 @@ def get_latest_calibration(machine: str = None, die: str = None):
 
     
     df_baselines = pd.read_sql(query, conn, params=(die,die))
-    # print(die)
-    # print(df_baselines)
     baselines = df_baselines.set_index('parameter_name').to_dict(orient='index')
-
-    # baselines = {PARAM_MAP_BL[k]:v for k, v in baselines.items()}
-    baselines = {k:v for k, v in baselines.items()}
-    # print("From Latest")
-    # print(baselines)
-    conn.commit()
+  
     cur.close()
     conn.close()
     
@@ -210,7 +204,7 @@ def get_latest_calibration(machine: str = None, die: str = None):
 def monitor_data(die):
     #Connect to database
     conn = psycopg2.connect(**DB_CONFIG)
-
+    print("In monitor data, DB_Config used: ", DB_CONFIG)
     query = """
         SELECT c.*
         FROM operating_parameter c
@@ -223,28 +217,17 @@ def monitor_data(die):
 
     """
 
-    # query = """
-    #         SELECT c.*
-    #         FROM operating_parameter c
-    #         WHERE c.id_part = %s
-    
-    #     """
-        
+    # print(die)
     df_raw = pd.read_sql(query, conn, params=(die,))
-    # df_raw = pd.read_sql(query, conn, params=("0817235929978",))
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
-    die_id = df.index.get_level_values("id_die")[0]
     part_id = df.index.get_level_values("id_part")[0]
 
-    X = pd.DataFrame(index=df.index)
-    for target_col in PARAM_COLS:
-        source_col = PARAM_MAP[target_col]
-        X[target_col] = df[source_col]
-
-    parameters = X.iloc[0].to_dict()
-    last_params = {PARAM_MAP[d]:v for d , v in parameters.items()}
     
+    # print(last_params)
+    last_params = df_raw.set_index("parameter_name")["value"].to_dict()
+    # print(last_params)
+        
     baselines = (df_raw.set_index("parameter_name")[["recomended_lower_tolerance", "recomended_upper_tolerance"]].apply(list, axis=1).to_dict())
     baselines_full = {
     param: {
@@ -299,22 +282,17 @@ def predictions(die):
     );
 
     """
+    query = """
+            SELECT c.*
+            FROM operating_parameter c
+            WHERE c.id_part = 
     
-    # query = """
-    #     SELECT c.*
-    #     FROM operating_parameter c
-    #     WHERE c.id_part = %s
-
-    # """
+        """
 
     df_raw = pd.read_sql(query, conn, params=(die,))
-    # df_raw = pd.read_sql(query, conn, params=("0817235929978",))
-    # print(df_raw)
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
-    # id_part = df.index.get_level_values("id_part")[0]
-    #print(id_part)
-    
+    # print(df)
     X = pd.DataFrame(index=df.index)
     for target_col in PARAM_COLS:
         source_col = PARAM_MAP[target_col]
@@ -369,7 +347,7 @@ def predictions(die):
     #print("Going to model")
     # Use latest model for each die (S14 only picks the newest trained model)
     for defect in TARGET_DEFECTS:
-        model_path = latest_model_path(die, defect)
+        model_path = None #latest_model_path(die, defect)
         if model_path is None:
             print(f"[predictions] No model found for defect={defect} and die={die}")
             pred_results.append(0.0)

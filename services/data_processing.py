@@ -63,7 +63,7 @@ PARAM_MAP = {
 }
 DIE_LIST = ["S14", "S16", "S17", "S18"]
 
-def store_defect(cur, row, id_client, id_machine):
+def store_defect(cur, row, date_ist, id_client, id_machine):
     defect = row['rejection']['reason']
     category = row['rejection']['category']
     zone = row['rejection']['zone']
@@ -71,14 +71,15 @@ def store_defect(cur, row, id_client, id_machine):
     view = row['rejection']['view']
     part_id = row['part']['id']
     id_die = row['part']['die']
+
     # cur.execute("""
     #         INSERT INTO part_quality (id_part, id_die, id_client, category, zone, sub_zone, view, id_machine, defect_type)
     #         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     # """, (part_id, id_die, id_client, category, zone, sub_zone, view, id_machine, defect))
 
     cur.execute("""
-    INSERT INTO part_quality_duplicate (id_part, id_die, id_client, updated_at, category, zone, sub_zone, view, id_machine, defect_type)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    INSERT INTO part_quality (id_part, id_die, id_client, updated_at, category, zone, sub_zone, view, id_machine, manufactored_on, defect_type)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (id_part) DO UPDATE SET
         id_die = EXCLUDED.id_die,
         id_client = EXCLUDED.id_client,
@@ -87,8 +88,9 @@ def store_defect(cur, row, id_client, id_machine):
         sub_zone = EXCLUDED.sub_zone,
         view = EXCLUDED.view,
         id_machine = EXCLUDED.id_machine,
-        defect_type = EXCLUDED.defect_type
-""", (part_id, id_die, id_client, datetime.now(), category, zone, sub_zone, view, id_machine, defect))
+        defect_type = EXCLUDED.defect_type,
+        manufactored_on = EXCLUDED.manufactored_on
+""", (part_id, id_die, id_client, datetime.now(), category, zone, sub_zone, view, id_machine, date_ist, defect))
 
 def date_processing(date):
     naive = datetime.fromisoformat(date.replace("Z", ""))
@@ -139,7 +141,7 @@ def process_data(data):
     print(id_machine)
 
     cur.execute("""
-        INSERT INTO part_duplicate (id_part, id_die, id_client, id_machine, manufactored_on, created_at)
+        INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at)
         VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (id_part) DO UPDATE SET
             id_die = EXCLUDED.id_die,
@@ -155,7 +157,7 @@ def process_data(data):
         uom = names_UOM[param][1]
         
         cur.execute("""
-                INSERT INTO operating_parameter_duplicate (id_part, id_die, id_client, id_machine, parameter_name, "UOM", value, created_at, updated_at)
+                INSERT INTO operating_parameter (id_part, id_die, id_client, id_machine, parameter_name, "UOM", value, created_at, updated_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id_part, parameter_name) DO UPDATE SET
                     id_die = EXCLUDED.id_die,
@@ -165,10 +167,10 @@ def process_data(data):
                     updated_at = EXCLUDED.updated_at
         """, (part_id, id_die, id_client, id_machine, param_name, uom, val, date_ist, datetime.now()))
 
-    print(data['rejection']['reason'])
+    print("Defect seen is: ", data['rejection']['reason'])
     if(data['rejection']['reason'] != None):
-        print(data['rejection']['reason'])
-        store_defect(cur, data, id_client, id_machine)
+        print("Defect being recored is: ", data['rejection']['reason'])
+        store_defect(cur, data, date_ist, id_client, id_machine)
 
     conn.commit()
     cur.close()

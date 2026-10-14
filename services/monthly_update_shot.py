@@ -287,6 +287,7 @@ def date_processing(date_string):
 def store_defect(
     cur,
     row,
+    date_ist,
     id_client,
     id_machine,
 ):
@@ -317,11 +318,13 @@ def store_defect(
             sub_zone,
             view,
             id_machine,
-            defect_type
+            defect_type,
+            manufactored_on
         )
         VALUES (
             %s, %s, %s, %s, %s,
-            %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s,
+            %s
         )
 
         ON CONFLICT (id_part)
@@ -334,7 +337,8 @@ def store_defect(
             sub_zone = EXCLUDED.sub_zone,
             view = EXCLUDED.view,
             id_machine = EXCLUDED.id_machine,
-            defect_type = EXCLUDED.defect_type
+            defect_type = EXCLUDED.defect_type,
+            manufactored_on = EXCLUDED.manufactored_on
         """,
         (
             part_id,
@@ -347,6 +351,7 @@ def store_defect(
             view,
             id_machine,
             defect,
+            date_ist
         )
     )
 
@@ -463,7 +468,7 @@ def process_data(
             )
             continue
 
-        param_name = names_UOM[param][0]
+        param_name = param
         # print(param_name)
         uom = names_UOM[param][1]
 
@@ -524,6 +529,7 @@ def process_data(
         store_defect(
             cur,
             data,
+            date_ist,
             id_client,
             id_machine,
         )
@@ -1307,6 +1313,6 @@ if __name__ == "__main__":
     #     month=6,
     # )
     update_date_range(
-        start_date="2026-09-17",
-        end_date="2026-09-19",
+        start_date="2026-09-19",
+        end_date="2026-09-25",
     )

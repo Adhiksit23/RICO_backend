@@ -44,7 +44,7 @@ def main(machine_id, die):
     #Adjusts so that it takes for specific die and machine
     query = """
         SELECT c.*
-        FROM operating_parameter_duplicate c
+        FROM operating_parameter c
         WHERE id_part IN (
             SELECT id_part FROM part
             WHERE id_die = %s and id_machine = %s
@@ -53,13 +53,13 @@ def main(machine_id, die):
     """
     df_raw = pd.read_sql(query, conn, params=(die, machine_id))
     part_ids = df_raw["id_part"].unique().tolist()
-    print("Part Ids seen: ", part_ids)
+    # print("Part Ids seen: ", part_ids)
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     param_names = [col for col in df.columns if col not in ["id_part", "id_die"]]
     df.columns.name = None
     df = df.reset_index()   
 
-    cur.execute("SELECT id_part FROM part_quality_duplicate") #Need to make it use specific die only
+    cur.execute("SELECT id_part FROM part_quality WHERE id_die = %s", (die,)) #Need to make it use specific die only
     existing_ids = {row[0] for row in cur.fetchall()}
 
     conn.close()
