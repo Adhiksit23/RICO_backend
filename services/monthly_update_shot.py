@@ -1314,6 +1314,6 @@ if __name__ == "__main__":
     #     month=6,
     # )
     update_date_range(
-        start_date="2026-10-12",
-        end_date="2026-10-14",
+        start_date="2026-09-01",
+        end_date="2026-09-30",
     )
