@@ -5,13 +5,9 @@ import psycopg2
 import sys
 import re
 
-DB_CONFIG = {
-    "host":     "aws-1-ap-southeast-2.pooler.supabase.com",
-    "dbname":   "postgres",
-    "user":     "postgres.nnflwohgewhkqqjfvote",
-    "password": "Datamgnt25!#",
-    "options":  "-c search_path=rico"
-}
+from services.config import (
+    DB_CONFIG
+)
 
 names_UOM = {
     'ACCEL. POINT mm ': ['ACCEL. POINT', 'mm'], 'BISCUIT THICKNESS mm ': ['BISCUIT THICKNESS', 'mm'], 'CLAMP FORCE (%) ': ['CLAMP FORCE', '%'], 
