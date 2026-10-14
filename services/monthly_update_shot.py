@@ -378,6 +378,7 @@ def process_data(
     parameters = shot.get("parameters")
 
     if parameters is None:
+        print("[SKIP] Missing Parameters ")
         return False
 
     part_id = part.get("id")
@@ -1313,6 +1314,6 @@ if __name__ == "__main__":
     #     month=6,
     # )
     update_date_range(
-        start_date="2026-09-19",
-        end_date="2026-09-25",
+        start_date="2026-09-26",
+        end_date="2026-09-30",
     )
