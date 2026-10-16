@@ -243,6 +243,7 @@ def get_stats(
                 "percent": f"{pct_defects:.2f}%",
                 "rate": f"{pct_rate:.2f}%",
                 "color": meta["color"],
+                "hex": meta["hex"],
                 "width": f"{min(100, max(2, round(pct_defects)))}%",
             })
 
