@@ -263,5 +263,5 @@ def main(machine_id, die):
 if __name__ == "__main__":
     # usage: python parameter_analysis.py <die> [machine_id]
     die_arg = sys.argv[1]
-    machine_arg = sys.argv[2] if len(sys.argv) > 2 else None
+    machine_arg = "UBE 850T-2"
     main(machine_arg, die_arg)

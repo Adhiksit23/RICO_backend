@@ -1,3 +1,4 @@
+import sys
 import pandas as pd
 import numpy as np
 import warnings, re, os
@@ -55,34 +56,6 @@ PARAM_COLS = [
     "METAL TEMP.value",
 ]
 
-PARAM_MAP = {
-    "cycletime value (sec)": "cycletime value (sec)",
-    "DIE CLOSE/CORE IN Parameter (sec)value": "DIE-CLOSE CORE IN TIME",
-    "POURING-step value (sec)": "POURING TIME",
-    "SHOT FWD-step value (sec)": "SHOT FWD TIME",
-    "COOLING-step value (sec)": "CURING TIME",
-    "DIE OPEN/CORE OUT-step value (sec)": "DIE OPEN CORE OUT TIME",
-    "EJECTOR-step value (sec)": "EJECTOR TIME",
-    "EXTRACTOR-step value (sec)": "EXTRACT TIME",
-    "SPRAY-step value (sec)": "SPRAY TIME",
-    "SPEED 1 (m/sec)value": "V1",
-    "SPEED 2 (m/sec)value": "V2",
-    "SPEED 3 (m/sec)value": "V3",
-    "SPEED 4(m/sec)value": "V4",
-    "ACC POSITION 1(mm)value": "ACCEL. POINT",
-    "DEACC POSITION 1(mm)value": "DEACEL. POINT",
-    "INTESIFICAITON TIME(msec)value": "INTEN. TIME",
-    "MATEL PRESSURE(Mpa)value": "METAL PRESS.",
-    "BISCUIT THICKNESS(mm)value": "BISCUIT THICKNESS",
-    "CLAMP FORCE(%)value": "CLAMP FORCE",
-    "CLAMP TONNAGE(MN)value": "CLAMP TONNAGE",
-    "SHOT ACC. PRESSURE value": "SHOT ACC. PRESSURE",
-    "INTESIFICAITON ACC. PRESSUREvalue": "INTENSIFICATION ACC. PRESSURE",
-    "METAL TEMP.value": "FURNACE METAL TEMP.",
-}
-
-PARAM_MAP_BL = {v: k for k, v in PARAM_MAP.items()}
-
 TARGET_DEFECTS = ["Blow Hole","Crack","Non filling","Porosity","Shrinkage","Chipoff"]
 MODEL_ORDER    = ["Logistic Regression","Gaussian NB","Decision Tree",
                     "Random Forest","LightGBM","XGBoost","Voting Ensemble"]
@@ -103,7 +76,7 @@ def get_pca_component(input_rescaled):
     get_component = int(idx[0]) + 1 if len(idx) else 1
     return get_component
 
-def best_threshold(y_true, y_prob, fixed_t=0.4):
+def best_threshold(y_true, y_prob, fixed_t=0.6):
     return fixed_t
 
 def get_models(n_pos, n_neg):
@@ -201,13 +174,9 @@ def main(machine_id, die):
     #All Parts operating parameters
     df_raw = pd.read_sql(query, conn, params=(die, machine_id))
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
-    param_names = [col for col in df.columns if col not in ["id_part", "id_die"]]
     df_data = df.reset_index()
     print('Rows (parts):', len(df_data))
-    # print('Columns:', len(df_data.columns))
-    # print('First row:')
-    # print(df_data.iloc[0])
-
+    
     print(
             "\nRecieved All Part Data."
     )
@@ -287,9 +256,7 @@ def main(machine_id, die):
 
     # Only S14 models include the DIE-CLOSE CORE IN TIME parameter,
     # keeping feature parity with the older models used by other dies.
-    if die != "S14":
-        df_baselines = df_baselines[df_baselines["parameter_name"] != "DIE-CLOSE CORE IN TIME"]
-
+    
     baselines = {
         r["parameter_name"]: (r["baseline"], r["lower_tolerance"], r["upper_tolerance"])
         for _, r in df_baselines.iterrows()
@@ -297,16 +264,16 @@ def main(machine_id, die):
     rprint(f"\nBaselines loaded for die {die}: {len(baselines)} params")
     rprint(f"\nBaselines loaded for die {die}: {baselines}")
     
-    clean_datasets = {defect: (df_data, PARAM_COLS) for defect in TARGET_DEFECTS}
+    clean_datasets = dict.fromkeys(TARGET_DEFECTS, df_data)
 
     feat_datasets = {}
-    for defect, (d, params) in clean_datasets.items():
+    for defect, d in clean_datasets.items():
         feat_rows = []
 
         for _, row in d.iterrows():
             feats = {}
             for col, (avg, min_r, max_r) in baselines.items():
-                col_raw = PARAM_MAP_BL[col]
+                col_raw = col
                 val = pd.to_numeric(row.get(col, np.nan), errors="coerce")
                 cn  = safe_cn(col_raw)
                 if pd.isna(val):
@@ -371,7 +338,7 @@ def main(machine_id, die):
 
     # ── PCA per defect → train all models ─────────────────────────────────────
     splits_pca = {}
-
+    # print(splits['Blow Hole'])
 
     rprint("=" * 65)
     rprint("PCA — Optimal Components Per Defect")
@@ -681,4 +648,5 @@ def main(machine_id, die):
     return
 
 if __name__ == "__main__":
-    main("UBE 850T-2", "S16")
+    die_arg = sys.argv[1]
+    main("UBE 850T-2", die_arg)

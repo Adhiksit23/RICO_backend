@@ -1,0 +1,619 @@
+
+Baselines loaded for die S18: 23 params
+
+Baselines loaded for die S18: {'biscuit_thickness': (34.68, 12.12, 57.25), 'clamp_tonnage': (840.98, 818.58, 863.37), 'curing_time': (14.01, 13.11, 14.91), 'die_open_core_out_time': (4.34, 4.2, 4.48), 'die_close_core_in_time': (4.52, 4.27, 4.76), 'ejector_time': (5.9, 5.55, 6.24), 'extract_time': (10.96, 10.84, 11.07), 'pouring_time': (4.33, 3.89, 4.76), 'shot_fwd_time': (2.02, 1.98, 2.06), 'spray_time': (24.53, 23.6, 25.45), 'accel_point': (358.86, 351.73, 366.0), 'cycle_time': (69.85, 68.39, 71.31), 'clamp_force_pct': (101.23, 95.64, 106.82), 'deaccel_point': (715.45, 712.85, 718.04), 'furnace_metal_temp': (657.41, 649.52, 665.31), 'intensification_time': (34.11, 31.86, 36.36), 'intensification_acc_pressure': (14.46, 14.26, 14.65), 'metal_pressure': (70.35, 69.25, 71.46), 'shot_acc_pressure': (14.46, 14.05, 14.86), 'v1_speed': (0.2, 0.2, 0.2), 'v2_speed': (0.35, 0.35, 0.35), 'v3_speed': (3.6, 3.51, 3.69), 'v4_speed': (3.89, 3.77, 4.01)}
+
+  Blow Hole:
+    Total balanced: 358 defects + 358 good = 716 rows
+    Train (70%): 250 defects + 251 good = 501 rows
+    Test  (30%): 108 defects + 107 good = 215 rows
+    Train defect rate: 49.9%
+
+  Crack:
+    Total balanced: 39 defects + 39 good = 78 rows
+    Train (70%): 28 defects + 26 good = 54 rows
+    Test  (30%): 11 defects + 13 good = 24 rows
+    Train defect rate: 51.9%
+
+  Non filling:
+    Total balanced: 32 defects + 32 good = 64 rows
+    Train (70%): 20 defects + 24 good = 44 rows
+    Test  (30%): 12 defects + 8 good = 20 rows
+    Train defect rate: 45.5%
+
+  Porosity:
+    Total balanced: 56 defects + 56 good = 112 rows
+    Train (70%): 38 defects + 40 good = 78 rows
+    Test  (30%): 18 defects + 16 good = 34 rows
+    Train defect rate: 48.7%
+
+  Shrinkage:
+    Total balanced: 25 defects + 25 good = 50 rows
+    Train (70%): 17 defects + 18 good = 35 rows
+    Test  (30%): 8 defects + 7 good = 15 rows
+    Train defect rate: 48.6%
+
+  Chipoff:
+    Total balanced: 44 defects + 44 good = 88 rows
+    Train (70%): 28 defects + 33 good = 61 rows
+    Test  (30%): 16 defects + 11 good = 27 rows
+    Train defect rate: 45.9%
+=================================================================
+PCA — Optimal Components Per Defect
+=================================================================
+  Optimal PCA components for Blow Hole: 22
+  Raw train: (501, 46) | Raw test: (215, 46) -> PCA train: (501, 22) | PCA test: (215, 22)
+  Optimal PCA components for Crack: 18
+  Raw train: (54, 46) | Raw test: (24, 46) -> PCA train: (54, 18) | PCA test: (24, 18)
+  Optimal PCA components for Non filling: 18
+  Raw train: (44, 46) | Raw test: (20, 46) -> PCA train: (44, 18) | PCA test: (20, 18)
+  Optimal PCA components for Porosity: 20
+  Raw train: (78, 46) | Raw test: (34, 46) -> PCA train: (78, 20) | PCA test: (34, 20)
+  Optimal PCA components for Shrinkage: 16
+  Raw train: (35, 46) | Raw test: (15, 46) -> PCA train: (35, 16) | PCA test: (15, 16)
+  Optimal PCA components for Chipoff: 20
+  Raw train: (61, 46) | Raw test: (27, 46) -> PCA train: (61, 20) | PCA test: (27, 20)
+
+✅ PCA splits ready for all defects — use splits_pca instead of splits
+=================================================================
+Canonical Correlation Per Defect
+=================================================================
+
+=================================================================
+DEFECT: Blow Hole  |  Train: 250 pos + 251 neg (1:1 balanced)
+=================================================================
+  ✓ Logistic Regression     threshold=0.60
+  ✓ Random Forest           threshold=0.60
+  ✓ LightGBM                threshold=0.60
+  ✓ XGBoost                 threshold=0.60
+  ✓ Voting Ensemble         threshold=0.60
+
+=================================================================
+DEFECT: Crack  |  Train: 28 pos + 26 neg (1:1 balanced)
+=================================================================
+  ✓ Logistic Regression     threshold=0.60
+  ✓ Random Forest           threshold=0.60
+  ✓ LightGBM                threshold=0.60
+  ✓ XGBoost                 threshold=0.60
+  ✓ Voting Ensemble         threshold=0.60
+
+=================================================================
+DEFECT: Non filling  |  Train: 20 pos + 24 neg (1:1 balanced)
+=================================================================
+  ✓ Logistic Regression     threshold=0.60
+  ✓ Random Forest           threshold=0.60
+  ✓ LightGBM                threshold=0.60
+  ✓ XGBoost                 threshold=0.60
+  ✓ Voting Ensemble         threshold=0.60
+
+=================================================================
+DEFECT: Porosity  |  Train: 38 pos + 40 neg (1:1 balanced)
+=================================================================
+  ✓ Logistic Regression     threshold=0.60
+  ✓ Random Forest           threshold=0.60
+  ✓ LightGBM                threshold=0.60
+  ✓ XGBoost                 threshold=0.60
+  ✓ Voting Ensemble         threshold=0.60
+
+=================================================================
+DEFECT: Shrinkage  |  Train: 17 pos + 18 neg (1:1 balanced)
+=================================================================
+  ✓ Logistic Regression     threshold=0.60
+  ✓ Random Forest           threshold=0.60
+  ✓ LightGBM                threshold=0.60
+  ✓ XGBoost                 threshold=0.60
+  ✓ Voting Ensemble         threshold=0.60
+
+=================================================================
+DEFECT: Chipoff  |  Train: 28 pos + 33 neg (1:1 balanced)
+=================================================================
+  ✓ Logistic Regression     threshold=0.60
+  ✓ Random Forest           threshold=0.60
+  ✓ LightGBM                threshold=0.60
+  ✓ XGBoost                 threshold=0.60
+  ✓ Voting Ensemble         threshold=0.60
+
+✅ Training complete: ['Blow Hole', 'Crack', 'Non filling', 'Porosity', 'Shrinkage', 'Chipoff']
+
+#################################################################
+RESULTS — Blow Hole
+#################################################################
+
+  Logistic Regression
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[91  16]
+   [50   58]]
+              precision    recall  f1-score   support
+
+        Good       0.65      0.85      0.73       107
+   Blow Hole       0.78      0.54      0.64       108
+
+    accuracy                           0.69       215
+   macro avg       0.71      0.69      0.69       215
+weighted avg       0.71      0.69      0.69       215
+
+
+  Random Forest
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[87  20]
+   [34   74]]
+              precision    recall  f1-score   support
+
+        Good       0.72      0.81      0.76       107
+   Blow Hole       0.79      0.69      0.73       108
+
+    accuracy                           0.75       215
+   macro avg       0.75      0.75      0.75       215
+weighted avg       0.75      0.75      0.75       215
+
+
+  LightGBM
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[84  23]
+   [51   57]]
+              precision    recall  f1-score   support
+
+        Good       0.62      0.79      0.69       107
+   Blow Hole       0.71      0.53      0.61       108
+
+    accuracy                           0.66       215
+   macro avg       0.67      0.66      0.65       215
+weighted avg       0.67      0.66      0.65       215
+
+
+  XGBoost
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[80  27]
+   [55   53]]
+              precision    recall  f1-score   support
+
+        Good       0.59      0.75      0.66       107
+   Blow Hole       0.66      0.49      0.56       108
+
+    accuracy                           0.62       215
+   macro avg       0.63      0.62      0.61       215
+weighted avg       0.63      0.62      0.61       215
+
+
+  Voting Ensemble
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[91  16]
+   [48   60]]
+              precision    recall  f1-score   support
+
+        Good       0.65      0.85      0.74       107
+   Blow Hole       0.79      0.56      0.65       108
+
+    accuracy                           0.70       215
+   macro avg       0.72      0.70      0.70       215
+weighted avg       0.72      0.70      0.70       215
+
+
+#################################################################
+RESULTS — Crack
+#################################################################
+
+  Logistic Regression
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[13  0]
+   [3   8]]
+              precision    recall  f1-score   support
+
+        Good       0.81      1.00      0.90        13
+       Crack       1.00      0.73      0.84        11
+
+    accuracy                           0.88        24
+   macro avg       0.91      0.86      0.87        24
+weighted avg       0.90      0.88      0.87        24
+
+
+  Random Forest
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[12  1]
+   [2   9]]
+              precision    recall  f1-score   support
+
+        Good       0.86      0.92      0.89        13
+       Crack       0.90      0.82      0.86        11
+
+    accuracy                           0.88        24
+   macro avg       0.88      0.87      0.87        24
+weighted avg       0.88      0.88      0.87        24
+
+
+  LightGBM
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[13  0]
+   [2   9]]
+              precision    recall  f1-score   support
+
+        Good       0.87      1.00      0.93        13
+       Crack       1.00      0.82      0.90        11
+
+    accuracy                           0.92        24
+   macro avg       0.93      0.91      0.91        24
+weighted avg       0.93      0.92      0.92        24
+
+
+  XGBoost
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[13  0]
+   [2   9]]
+              precision    recall  f1-score   support
+
+        Good       0.87      1.00      0.93        13
+       Crack       1.00      0.82      0.90        11
+
+    accuracy                           0.92        24
+   macro avg       0.93      0.91      0.91        24
+weighted avg       0.93      0.92      0.92        24
+
+
+  Voting Ensemble
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[13  0]
+   [2   9]]
+              precision    recall  f1-score   support
+
+        Good       0.87      1.00      0.93        13
+       Crack       1.00      0.82      0.90        11
+
+    accuracy                           0.92        24
+   macro avg       0.93      0.91      0.91        24
+weighted avg       0.93      0.92      0.92        24
+
+
+#################################################################
+RESULTS — Non filling
+#################################################################
+
+  Logistic Regression
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[8  0]
+   [8   4]]
+              precision    recall  f1-score   support
+
+        Good       0.50      1.00      0.67         8
+ Non filling       1.00      0.33      0.50        12
+
+    accuracy                           0.60        20
+   macro avg       0.75      0.67      0.58        20
+weighted avg       0.80      0.60      0.57        20
+
+
+  Random Forest
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[8  0]
+   [3   9]]
+              precision    recall  f1-score   support
+
+        Good       0.73      1.00      0.84         8
+ Non filling       1.00      0.75      0.86        12
+
+    accuracy                           0.85        20
+   macro avg       0.86      0.88      0.85        20
+weighted avg       0.89      0.85      0.85        20
+
+
+  LightGBM
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[8  0]
+   [4   8]]
+              precision    recall  f1-score   support
+
+        Good       0.67      1.00      0.80         8
+ Non filling       1.00      0.67      0.80        12
+
+    accuracy                           0.80        20
+   macro avg       0.83      0.83      0.80        20
+weighted avg       0.87      0.80      0.80        20
+
+
+  XGBoost
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[8  0]
+   [2   10]]
+              precision    recall  f1-score   support
+
+        Good       0.80      1.00      0.89         8
+ Non filling       1.00      0.83      0.91        12
+
+    accuracy                           0.90        20
+   macro avg       0.90      0.92      0.90        20
+weighted avg       0.92      0.90      0.90        20
+
+
+  Voting Ensemble
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[8  0]
+   [3   9]]
+              precision    recall  f1-score   support
+
+        Good       0.73      1.00      0.84         8
+ Non filling       1.00      0.75      0.86        12
+
+    accuracy                           0.85        20
+   macro avg       0.86      0.88      0.85        20
+weighted avg       0.89      0.85      0.85        20
+
+
+#################################################################
+RESULTS — Porosity
+#################################################################
+
+  Logistic Regression
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[8  8]
+   [6   12]]
+              precision    recall  f1-score   support
+
+        Good       0.57      0.50      0.53        16
+    Porosity       0.60      0.67      0.63        18
+
+    accuracy                           0.59        34
+   macro avg       0.59      0.58      0.58        34
+weighted avg       0.59      0.59      0.59        34
+
+
+  Random Forest
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[7  9]
+   [5   13]]
+              precision    recall  f1-score   support
+
+        Good       0.58      0.44      0.50        16
+    Porosity       0.59      0.72      0.65        18
+
+    accuracy                           0.59        34
+   macro avg       0.59      0.58      0.57        34
+weighted avg       0.59      0.59      0.58        34
+
+
+  LightGBM
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[6  10]
+   [2   16]]
+              precision    recall  f1-score   support
+
+        Good       0.75      0.38      0.50        16
+    Porosity       0.62      0.89      0.73        18
+
+    accuracy                           0.65        34
+   macro avg       0.68      0.63      0.61        34
+weighted avg       0.68      0.65      0.62        34
+
+
+  XGBoost
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[8  8]
+   [5   13]]
+              precision    recall  f1-score   support
+
+        Good       0.62      0.50      0.55        16
+    Porosity       0.62      0.72      0.67        18
+
+    accuracy                           0.62        34
+   macro avg       0.62      0.61      0.61        34
+weighted avg       0.62      0.62      0.61        34
+
+
+  Voting Ensemble
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[6  10]
+   [5   13]]
+              precision    recall  f1-score   support
+
+        Good       0.55      0.38      0.44        16
+    Porosity       0.57      0.72      0.63        18
+
+    accuracy                           0.56        34
+   macro avg       0.56      0.55      0.54        34
+weighted avg       0.56      0.56      0.54        34
+
+
+#################################################################
+RESULTS — Shrinkage
+#################################################################
+
+  Logistic Regression
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[7  0]
+   [3   5]]
+              precision    recall  f1-score   support
+
+        Good       0.70      1.00      0.82         7
+   Shrinkage       1.00      0.62      0.77         8
+
+    accuracy                           0.80        15
+   macro avg       0.85      0.81      0.80        15
+weighted avg       0.86      0.80      0.79        15
+
+
+  Random Forest
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[7  0]
+   [1   7]]
+              precision    recall  f1-score   support
+
+        Good       0.88      1.00      0.93         7
+   Shrinkage       1.00      0.88      0.93         8
+
+    accuracy                           0.93        15
+   macro avg       0.94      0.94      0.93        15
+weighted avg       0.94      0.93      0.93        15
+
+
+  LightGBM
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[7  0]
+   [8   0]]
+              precision    recall  f1-score   support
+
+        Good       0.47      1.00      0.64         7
+   Shrinkage       0.00      0.00      0.00         8
+
+    accuracy                           0.47        15
+   macro avg       0.23      0.50      0.32        15
+weighted avg       0.22      0.47      0.30        15
+
+
+  XGBoost
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[7  0]
+   [1   7]]
+              precision    recall  f1-score   support
+
+        Good       0.88      1.00      0.93         7
+   Shrinkage       1.00      0.88      0.93         8
+
+    accuracy                           0.93        15
+   macro avg       0.94      0.94      0.93        15
+weighted avg       0.94      0.93      0.93        15
+
+
+  Voting Ensemble
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[7  0]
+   [1   7]]
+              precision    recall  f1-score   support
+
+        Good       0.88      1.00      0.93         7
+   Shrinkage       1.00      0.88      0.93         8
+
+    accuracy                           0.93        15
+   macro avg       0.94      0.94      0.93        15
+weighted avg       0.94      0.93      0.93        15
+
+
+#################################################################
+RESULTS — Chipoff
+#################################################################
+
+  Logistic Regression
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[9  2]
+   [13   3]]
+              precision    recall  f1-score   support
+
+        Good       0.41      0.82      0.55        11
+     Chipoff       0.60      0.19      0.29        16
+
+    accuracy                           0.44        27
+   macro avg       0.50      0.50      0.42        27
+weighted avg       0.52      0.44      0.39        27
+
+
+  Random Forest
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[7  4]
+   [8   8]]
+              precision    recall  f1-score   support
+
+        Good       0.47      0.64      0.54        11
+     Chipoff       0.67      0.50      0.57        16
+
+    accuracy                           0.56        27
+   macro avg       0.57      0.57      0.55        27
+weighted avg       0.59      0.56      0.56        27
+
+
+  LightGBM
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[8  3]
+   [9   7]]
+              precision    recall  f1-score   support
+
+        Good       0.47      0.73      0.57        11
+     Chipoff       0.70      0.44      0.54        16
+
+    accuracy                           0.56        27
+   macro avg       0.59      0.58      0.55        27
+weighted avg       0.61      0.56      0.55        27
+
+
+  XGBoost
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[6  5]
+   [8   8]]
+              precision    recall  f1-score   support
+
+        Good       0.43      0.55      0.48        11
+     Chipoff       0.62      0.50      0.55        16
+
+    accuracy                           0.52        27
+   macro avg       0.52      0.52      0.52        27
+weighted avg       0.54      0.52      0.52        27
+
+
+  Voting Ensemble
+  ---------------------------------------------
+  Best Threshold: 0.6
+  Confusion Matrix:
+  [[8  3]
+   [10   6]]
+              precision    recall  f1-score   support
+
+        Good       0.44      0.73      0.55        11
+     Chipoff       0.67      0.38      0.48        16
+
+    accuracy                           0.52        27
+   macro avg       0.56      0.55      0.52        27
+weighted avg       0.58      0.52      0.51        27

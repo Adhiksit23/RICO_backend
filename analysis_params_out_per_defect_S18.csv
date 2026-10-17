@@ -1,4 +1,4 @@
-defect,defective_parts,avg_params_out,median_params_out,max_params_out,pct_with_0_out,pct_with_1+_out,pct_with_2+_out,pct_with_3+_out
+group,parts,avg_params_out,median_params_out,max_params_out,pct_with_0_out,pct_with_1+_out,pct_with_2+_out,pct_with_3+_out
 Blow Hole,209,4.6,4.0,10,0.0,100.0,100.0,96.2
 Crack,34,5.85,6.0,11,0.0,100.0,100.0,97.1
 Non filling,4,5.75,5.5,8,0.0,100.0,100.0,100.0
