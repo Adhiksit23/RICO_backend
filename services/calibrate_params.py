@@ -29,25 +29,41 @@ def safe_cn(col):
         return re.sub(r"[^a-zA-Z0-9]","_",str(col)).strip("_").replace("__","_")
 
 
-def main(machine_id, die):
+def main(machine_id, die, start_date=None, end_date=None):
    
-    print(die)
+    print(f"[calibrate_params] die={die}, machine={machine_id}, start_date={start_date}, end_date={end_date}")
     conn = psycopg2.connect(**DB_CONFIG)
     cur  = conn.cursor()
 
     num_samples = 0
 
-    #Adjusts so that it takes for specific die and machine
-    query = """
+    # Filter parts for specific die, machine, and optional date range
+    part_clauses = ["id_die = %s", "id_machine = %s"]
+    part_params = [die, machine_id]
+
+    if start_date:
+        part_clauses.append("manufactored_on >= %s::date")
+        part_params.append(start_date.strip())
+    if end_date:
+        part_clauses.append("manufactored_on < (%s::date + INTERVAL '1 day')")
+        part_params.append(end_date.strip())
+
+    part_where = " AND ".join(part_clauses)
+
+    query = f"""
         SELECT c.*
         FROM operating_parameter c
         WHERE id_part IN (
             SELECT id_part FROM part
-            WHERE id_die = %s and id_machine = %s
+            WHERE {part_where}
         );
-
     """
-    df_raw = pd.read_sql(query, conn, params=(die, machine_id))
+    df_raw = pd.read_sql(query, conn, params=tuple(part_params))
+    if df_raw.empty:
+        conn.close()
+        print("[calibrate_params] No operating parameters found for selected filter criteria.")
+        return [{}, 0]
+
     part_ids = df_raw["id_part"].unique().tolist()
     # print("Part Ids seen: ", part_ids)
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")

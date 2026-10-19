@@ -56,9 +56,13 @@ def get_latest_parameters(machine: str = None, die: str = None):
 def compute_calibration_ranges(
     machine: str | None = None,
     die: str | None = "S14",
+    start_date: str | None = None,
+    end_date: str | None = None,
 ):
     try:
-        baselines, num_samples = calibrate_params.main(machine, die=die)
+        baselines, num_samples = calibrate_params.main(
+            machine, die=die, start_date=start_date, end_date=end_date
+        )
     except Exception as exc:
         logger.exception("compute_calibration_ranges failed for machine=%s die=%s", machine, die)
         raise

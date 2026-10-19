@@ -84,10 +84,17 @@ def latest_parameters(
 def calibration_ranges(
     machine: str | None = None,
     die: str | None = "S14",
+    start_date: str | None = None,
+    end_date: str | None = None,
 ):
-    """Compute and return calibration tolerance ranges for a given die."""
+    """Compute and return calibration tolerance ranges for a given die and optional date window."""
     try:
-        ranges = compute_calibration_ranges(machine, die)
+        ranges = compute_calibration_ranges(
+            machine=machine,
+            die=die,
+            start_date=start_date,
+            end_date=end_date,
+        )
     except HTTPException:
         raise
     except Exception as exc:
