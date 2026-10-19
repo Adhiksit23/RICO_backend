@@ -36,57 +36,56 @@ SHOT_RESULT = "all"
 PAGE_SIZE = "100"
 
 names_UOM = {
-    "accel_point": ["ACCEL. POINT", "mm"],
-    "biscuit_thickness": ["BISCUIT THICKNESS", "mm"],
-    "clamp_force_pct": ["CLAMP FORCE", "%"],
-    "clamp_tonnage": ["CLAMP TONNAGE", "Mn"],
-    "curing_time": ["CURING TIME", "sec"],
-    "deaccel_point": ["DEACEL. POINT", "mm"],
-    "die_open_core_out_time": ["DIE OPEN CORE OUT TIME", "sec"],
-    "die_close_core_in_time": ["DIE-CLOSE CORE IN TIME", "sec"],
-    "ejector_time": ["EJECTOR TIME", "sec"],
-    "extract_time": ["EXTRACT TIME", "sec"],
-    "furnace_metal_temp": ["FURNACE METAL TEMP.", "C"],
-    "intensification_time": ["INTEN. TIME", "msec"],
-    "intensification_acc_pressure": ["INTENSIFICATION ACC. PRESSURE", "mPa"],
-    "metal_pressure": ["METAL PRESS.", "mPa"],
-    "pouring_time": ["POURING TIME", "sec"],
-    "shot_acc_pressure": ["SHOT ACC. PRESSURE", "Mpa"],
-    "shot_fwd_time": ["SHOT FWD TIME", "sec"],
-    "spray_time": ["SPRAY TIME", "sec"],
-    "v1_speed": ["V1", "m/sec"],
-    "v2_speed": ["V2", "m/sec"],
-    "v3_speed": ["V3", "m/sec"],
-    "v4_speed": ["V4", "m/sec"],
-    "cycle_time": ["cycletime value (sec)", "sec"],
+    'accel_point': 'mm',
+    'biscuit_thickness': 'mm',
+    'clamp_force_pct': '%',
+    'clamp_tonnage': 'Mn',
+    'curing_time': 'sec',
+    'deaccel_point': 'mm',
+    'die_open_core_out_time': 'sec',
+    'die_close_core_in_time': 'sec',
+    'ejector_time': 'sec',
+    'extract_time': 'sec',
+    'furnace_metal_temp': 'C',
+    'intensification_time': 'msec',
+    'intensification_acc_pressure': 'mPa',
+    'metal_pressure': 'mPa',
+    'pouring_time': 'sec',
+    'shot_acc_pressure': 'Mpa',
+    'shot_fwd_time': 'sec',
+    'spray_time': 'sec',
+    'v1_speed': 'm/sec',
+    'v2_speed': 'm/sec',
+    'v3_speed': 'm/sec',
+    'v4_speed': 'm/sec',
+    'cycle_time': 'sec',
 }
 
-PARAM_MAP = {
-    "cycle_time": "cycletime value (sec)",
-    "die_close_core_in_time": "DIE CLOSE/CORE IN Parameter (sec)value",
-    "pouring_time": "POURING-step value (sec)",
-    "shot_fwd_time": "SHOT FWD-step value (sec)",
-    "curing_time": "COOLING-step value (sec)",
-    "die_open_core_out_time": "DIE OPEN/CORE OUT-step value (sec)",
-    "ejector_time": "EJECTOR-step value (sec)",
-    "extract_time": "EXTRACTOR-step value (sec)",
-    "spray_time": "SPRAY-step value (sec)",
-    "v1_speed": "SPEED 1 (m/sec)value",
-    "v2_speed": "SPEED 2 (m/sec)value",
-    "v3_speed": "SPEED 3 (m/sec)value",
-    "v4_speed": "SPEED 4(m/sec)value",
-    "accel_point": "ACC POSITION 1(mm)value",
-    "deaccel_point": "DEACC POSITION 1(mm)value",
-    "intensification_time": "INTESIFICAITON TIME(msec)value",
-    "metal_pressure": "METAL PRESSURE(Mpa)value",
-    "biscuit_thickness": "BISCUIT THICKNESS(mm)value",
-    "clamp_force_pct": "CLAMP FORCE(%)value",
-    "clamp_tonnage": "CLAMP TONNAGE(MN)value",
-    "shot_acc_pressure": "SHOT ACC. PRESSURE value",
-    "intensification_acc_pressure": "INTESIFICAITON ACC. PRESSUREvalue",
-    "furnace_metal_temp": "METAL TEMP.value",
-}
-
+PARAM_LIST = [
+    "cycle_time",
+    "die_close_core_in_time",
+    "pouring_time",
+    "shot_fwd_time",
+    "curing_time",
+    "die_open_core_out_time",
+    "ejector_time",
+    "extract_time",
+    "spray_time",
+    "v1_speed",
+    "v2_speed",
+    "v3_speed",
+    "v4_speed",
+    "accel_point",
+    "deaccel_point",
+    "intensification_time",
+    "metal_pressure",
+    "biscuit_thickness",
+    "clamp_force_pct",
+    "clamp_tonnage",
+    "shot_acc_pressure",
+    "intensification_acc_pressure",
+    "furnace_metal_temp",
+]
 
 def update_date_path_shot() -> str:
     """Build PLC history query path for today's shots."""
@@ -211,12 +210,12 @@ def process_data_shot(data: dict) -> None:
         )
 
         for param, val in data.items():
-            if param not in PARAM_MAP:
+            if param not in PARAM_LIST:
                 continue
             param_name = param
             param_lower_tolerance = data.get(f"{param}_lower_limit") or 0
             param_upper_tolerance = data.get(f"{param}_upper_limit") or 0
-            uom = names_UOM[param][1]
+            uom = names_UOM[param]
             cur.execute(
                 """
                 INSERT INTO operating_parameter (

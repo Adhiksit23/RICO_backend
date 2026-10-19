@@ -49,12 +49,6 @@ def categorize_defect(raw_type: Optional[str]):
         return "Chip-off", "bg-green-400", "#34D399"
     if "crack" in d:
         return "Crack", "bg-red-500", "#EF4444"
-    if "bend" in d or "dia under size" in d:
-        return "Bend / Dimension", "bg-orange-400", "#FB923C"
-    if any(k in d for k in ["black mark", "dent", "scratch", "flow mark", "face unclean", "face step"]):
-        return "Surface Defect", "bg-indigo-400", "#818CF8"
-    if "plc" in d or "recovery" in d:
-        return "System / PLC Alert", "bg-purple-500", "#A855F7"
     return "Others", "bg-gray-400", "#94A3B8"
 
 
@@ -282,6 +276,7 @@ def fetch_stats_from_cursor(
             "percent": f"{pct_defects:.2f}%",
             "rate": f"{pct_rate:.2f}%",
             "color": meta["color"],
+            "hex": meta["hex"],
             "width": f"{min(100, max(2, round(pct_defects)))}%",
         })
 

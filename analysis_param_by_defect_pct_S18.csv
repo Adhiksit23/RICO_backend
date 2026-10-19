@@ -1,0 +1,20 @@
+parameter,Blow Hole,Crack,Non filling,Porosity,Shrinkage,Chipoff,ALL
+ejector_time,94.7,97.1,100.0,100.0,100.0,100.0,95.4
+extract_time,87.6,88.2,100.0,50.0,87.5,100.0,87.8
+clamp_tonnage,65.1,35.3,75.0,0.0,87.5,50.0,61.2
+metal_pressure,52.6,64.7,25.0,50.0,62.5,50.0,54.0
+cycle_time,30.1,61.8,25.0,0.0,37.5,66.7,35.0
+intensification_acc_pressure,31.6,29.4,50.0,0.0,25.0,16.7,30.8
+spray_time,24.4,55.9,75.0,50.0,25.0,50.0,30.0
+furnace_metal_temp,15.8,20.6,0.0,0.0,0.0,0.0,15.2
+deaccel_point,11.0,14.7,0.0,50.0,37.5,50.0,13.3
+die_open_core_out_time,13.9,8.8,0.0,50.0,0.0,33.3,13.3
+intensification_time,10.0,11.8,25.0,0.0,12.5,0.0,10.3
+shot_acc_pressure,4.3,14.7,25.0,50.0,0.0,16.7,6.5
+v4_speed,2.4,32.4,0.0,0.0,0.0,0.0,6.1
+shot_fwd_time,6.2,2.9,0.0,0.0,0.0,16.7,5.7
+pouring_time,2.4,14.7,25.0,0.0,0.0,0.0,4.2
+clamp_force_pct,2.9,5.9,50.0,0.0,0.0,0.0,3.8
+die_close_core_in_time,2.9,2.9,0.0,0.0,0.0,0.0,2.7
+v3_speed,1.0,14.7,0.0,0.0,0.0,0.0,2.7
+accel_point,1.0,8.8,0.0,0.0,0.0,0.0,1.9

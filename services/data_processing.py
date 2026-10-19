@@ -7,60 +7,60 @@ from services.config import (
     DB_CONFIG
 )
 
-
 names_UOM = {
-    'accel_point': ['ACCEL. POINT', 'mm'],
-    'biscuit_thickness': ['BISCUIT THICKNESS', 'mm'],
-    'clamp_force_pct': ['CLAMP FORCE', '%'],
-    'clamp_tonnage': ['CLAMP TONNAGE', 'Mn'],
-    'curing_time': ['CURING TIME', 'sec'],
-    'deaccel_point': ['DEACEL. POINT', 'mm'],
-    'die_open_core_out_time': ['DIE OPEN CORE OUT TIME', 'sec'],
-    'die_close_core_in_time': ['DIE-CLOSE CORE IN TIME', 'sec'],
-    'ejector_time': ['EJECTOR TIME', 'sec'],
-    'extract_time': ['EXTRACT TIME', 'sec'],
-    'furnace_metal_temp': ['FURNACE METAL TEMP.', 'C'],
-    'intensification_time': ['INTEN. TIME', 'msec'],
-    'intensification_acc_pressure': ['INTENSIFICATION ACC. PRESSURE', 'mPa'],
-    'metal_pressure': ['METAL PRESS.', 'mPa'],
-    'pouring_time': ['POURING TIME', 'sec'],
-    'shot_acc_pressure': ['SHOT ACC. PRESSURE', 'Mpa'],
-    'shot_fwd_time': ['SHOT FWD TIME', 'sec'],
-    'spray_time': ['SPRAY TIME', 'sec'],
-    'v1_speed': ['V1', 'm/sec'],
-    'v2_speed': ['V2', 'm/sec'],
-    'v3_speed': ['V3', 'm/sec'],
-    'v4_speed': ['V4', 'm/sec'],
-    'cycle_time': ['cycletime value (sec)', 'sec'],
+    'accel_point': 'mm',
+    'biscuit_thickness': 'mm',
+    'clamp_force_pct': '%',
+    'clamp_tonnage': 'Mn',
+    'curing_time': 'sec',
+    'deaccel_point': 'mm',
+    'die_open_core_out_time': 'sec',
+    'die_close_core_in_time': 'sec',
+    'ejector_time': 'sec',
+    'extract_time': 'sec',
+    'furnace_metal_temp': 'C',
+    'intensification_time': 'msec',
+    'intensification_acc_pressure': 'mPa',
+    'metal_pressure': 'mPa',
+    'pouring_time': 'sec',
+    'shot_acc_pressure': 'Mpa',
+    'shot_fwd_time': 'sec',
+    'spray_time': 'sec',
+    'v1_speed': 'm/sec',
+    'v2_speed': 'm/sec',
+    'v3_speed': 'm/sec',
+    'v4_speed': 'm/sec',
+    'cycle_time': 'sec',
 }
  
 MACHINE_IDS = ["UBE 850T-1", "UBE 850T-2", "UBE 850T-3"]
 
-PARAM_MAP = {
-    "cycle_time": "cycletime value (sec)",
-    "die_close_core_in_time": "DIE CLOSE/CORE IN Parameter (sec)value",
-    "pouring_time": "POURING-step value (sec)",
-    "shot_fwd_time": "SHOT FWD-step value (sec)",
-    "curing_time": "COOLING-step value (sec)",
-    "die_open_core_out_time": "DIE OPEN/CORE OUT-step value (sec)",
-    "ejector_time": "EJECTOR-step value (sec)",
-    "extract_time": "EXTRACTOR-step value (sec)",
-    "spray_time": "SPRAY-step value (sec)",
-    "v1_speed": "SPEED 1 (m/sec)value",
-    "v2_speed": "SPEED 2 (m/sec)value",
-    "v3_speed": "SPEED 3 (m/sec)value",
-    "v4_speed": "SPEED 4(m/sec)value",
-    "accel_point": "ACC POSITION 1(mm)value",
-    "deaccel_point": "DEACC POSITION 1(mm)value",
-    "intensification_time": "INTESIFICAITON TIME(msec)value",
-    "metal_pressure": "METAL PRESSURE(Mpa)value",
-    "biscuit_thickness": "BISCUIT THICKNESS(mm)value",
-    "clamp_force_pct": "CLAMP FORCE(%)value",
-    "clamp_tonnage": "CLAMP TONNAGE(MN)value",
-    "shot_acc_pressure": "SHOT ACC. PRESSURE value",
-    "intensification_acc_pressure": "INTESIFICAITON ACC. PRESSUREvalue",
-    "furnace_metal_temp": "METAL TEMP.value",
-}
+PARAM_LIST = [
+    "cycle_time",
+    "die_close_core_in_time",
+    "pouring_time",
+    "shot_fwd_time",
+    "curing_time",
+    "die_open_core_out_time",
+    "ejector_time",
+    "extract_time",
+    "spray_time",
+    "v1_speed",
+    "v2_speed",
+    "v3_speed",
+    "v4_speed",
+    "accel_point",
+    "deaccel_point",
+    "intensification_time",
+    "metal_pressure",
+    "biscuit_thickness",
+    "clamp_force_pct",
+    "clamp_tonnage",
+    "shot_acc_pressure",
+    "intensification_acc_pressure",
+    "furnace_metal_temp",
+]
+
 DIE_LIST = ["S14", "S16", "S17", "S18"]
 
 def store_defect(cur, row, date_ist, id_client, id_machine):
@@ -71,11 +71,6 @@ def store_defect(cur, row, date_ist, id_client, id_machine):
     view = row['rejection']['view']
     part_id = row['part']['id']
     id_die = row['part']['die']
-
-    # cur.execute("""
-    #         INSERT INTO part_quality (id_part, id_die, id_client, category, zone, sub_zone, view, id_machine, defect_type)
-    #         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    # """, (part_id, id_die, id_client, category, zone, sub_zone, view, id_machine, defect))
 
     cur.execute("""
     INSERT INTO part_quality (id_part, id_die, id_client, updated_at, category, zone, sub_zone, view, id_machine, manufactored_on, defect_type)
@@ -103,7 +98,6 @@ def process_data(data):
     if(data['shot']['parameters'] == None):
         return
 
-    #Start Enterring Data
 
     part_id = data['part']['id']
     client_code = "R437111511"
@@ -112,10 +106,8 @@ def process_data(data):
         print("PROBLEM IN API")
         return
     
-    # print("reason of defect:", data['rejection'])
-    id_machine = data['shot']['machine'] #This needs to be updated to use stored machine id
+    id_machine = data['shot']['machine'] 
     id_die = data['part']['die']
-    # print(id_die)
     if id_die not in DIE_LIST:
         return
 
@@ -140,6 +132,7 @@ def process_data(data):
     id_machine = cur.fetchone()[0]
     print(id_machine)
 
+    #Start entering data
     cur.execute("""
         INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at)
         VALUES (%s, %s, %s, %s, %s, %s)
@@ -151,10 +144,10 @@ def process_data(data):
 """, (part_id, id_die, id_client, id_machine, date_ist, datetime.now()))
 
     for param, val in data['shot']['parameters'].items():
-        if(param not in PARAM_MAP):
+        if(param not in PARAM_LIST):
             continue
         param_name = param
-        uom = names_UOM[param][1]
+        uom = names_UOM[param]
         
         cur.execute("""
                 INSERT INTO operating_parameter (id_part, id_die, id_client, id_machine, parameter_name, "UOM", value, created_at, updated_at)
@@ -179,7 +172,7 @@ def process_data(data):
 
 def store_quality_pred(predictions, part, TARGET_DEFECTS, cur):
     id_part = part["id_part"].iloc[0]
-    print(id_part)
+    print("Storing predictions for: ", id_part)
     id_die = part["id_die"].iloc[0]
     id_machine = part["id_machine"].iloc[0]
     id_client = part["id_client"].iloc[0]

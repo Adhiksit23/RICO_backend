@@ -9,14 +9,38 @@ from services.config import (
     DB_CONFIG
 )
 
+names_UOM = {
+    'accel_point': 'mm',
+    'biscuit_thickness': 'mm',
+    'clamp_force_pct': '%',
+    'clamp_tonnage': 'Mn',
+    'curing_time': 'sec',
+    'deaccel_point': 'mm',
+    'die_open_core_out_time': 'sec',
+    'die_close_core_in_time': 'sec',
+    'ejector_time': 'sec',
+    'extract_time': 'sec',
+    'furnace_metal_temp': 'C',
+    'intensification_time': 'msec',
+    'intensification_acc_pressure': 'mPa',
+    'metal_pressure': 'mPa',
+    'pouring_time': 'sec',
+    'shot_acc_pressure': 'Mpa',
+    'shot_fwd_time': 'sec',
+    'spray_time': 'sec',
+    'v1_speed': 'm/sec',
+    'v2_speed': 'm/sec',
+    'v3_speed': 'm/sec',
+    'v4_speed': 'm/sec',
+    'cycle_time': 'sec',
+}
+
 def get_latest_parameters(machine: str = None, die: str = None):
     conn = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cur  = conn.cursor()
 
-        # print(die)
-        # print(machine)
         query = """
             SELECT c.*
             FROM calibration_parameter c
@@ -31,14 +55,14 @@ def get_latest_parameters(machine: str = None, die: str = None):
             
         cur.close()
         conn.close()
-        # print(df)
-        # Return a clean dictionary of { "Param Name": baseline_value }
+        
         result = {
             row["parameter_name"]: {
             
             "baseline": float(row["baseline"]),
             "min_range": float(row["lower_tolerance"]),
-            "max_range": float(row["upper_tolerance"])
+            "max_range": float(row["upper_tolerance"]),
+            "unit": names_UOM[row["parameter_name"]]
             } for _, row in df.iterrows()
         }
         # print("Result of latest in calibration page: ", result )
@@ -77,8 +101,7 @@ def compute_calibration_ranges(
         }
         for name in baselines
     }
-    # vals["ACCEL. POINT"]["baseline"] = 0
-    #print(vals["ACCEL. POINT"])
+    
     
     return {
         "ranges": vals,
