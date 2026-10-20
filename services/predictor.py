@@ -37,6 +37,32 @@ DIE_CASTING_MACHINE = "UBE 850 T - 02"
 PAGE = "1"
 PAGE_SIZE = "100"
 
+PARAM_MAPPING = {
+    "cycletime_value_sec": "cycle_time",
+    "DIE_CLOSE_CORE_IN_step_value_sec": "die_close_core_in_time",
+    "POURING_step_value_sec": "pouring_time",
+    "SHOT_FWD_step_value_sec": "shot_fwd_time",
+    "COOLING_step_value_sec": "curing_time",
+    "DIE_OPEN_CORE_OUT_step_value_sec": "die_open_core_out_time",
+    "EJECTOR_step_value_sec": "ejector_time",
+    "EXTRACTOR_step_value_sec": "extract_time",
+    "SPRAY_step_value_sec": "spray_time",
+    "SPEED_1_m_sec_value": "v1_speed",
+    "SPEED_2_m_sec_value": "v2_speed",
+    "SPEED_3_m_sec_value": "v3_speed",
+    "SPEED_4_m_sec_value": "v4_speed",
+    "ACC_POSITION_1_mm_value": "accel_point",
+    "DEACC_POSITION_1_mm_value": "deaccel_point",
+    "INTESIFICAITON_TIME_msec_value": "intensification_time",
+    "MATEL_PRESSURE_Mpa_value": "metal_pressure",
+    "BISCUIT_THICKNESS_mm_value": "biscuit_thickness",
+    "CLAMP_FORCE__value": "clamp_force_pct",
+    "CLAMP_TONNAGE_MN_value": "clamp_tonnage",
+    "SHOT_ACC_PRESSURE_value": "shot_acc_pressure",
+    "INTESIFICAITON_ACC_PRESSUREvalue": "intensification_acc_pressure",
+    "METAL_TEMP_value": "furnace_metal_temp",
+}
+
 def update_date_path() -> str:
     #Connect to database
     # Fall back to a default if the table is empty
@@ -108,8 +134,12 @@ def get_latest_calibration(machine: str = None, die: str = None):
 
     
     df_baselines = pd.read_sql(query, conn, params=(die,die))
+
+    if die == 'S16':
+        df_baselines["parameter_name"] = df_baselines["parameter_name"].replace(PARAM_MAPPING)
+
     baselines = df_baselines.set_index('parameter_name').to_dict(orient='index')
-  
+    
     cur.close()
     conn.close()
     
@@ -139,6 +169,9 @@ def monitor_data(die):
 
     
     # print(last_params)
+    if die == 'S16':
+        df_raw["parameter_name"] = df_raw["parameter_name"].replace(PARAM_MAPPING)
+    
     last_params = df_raw.set_index("parameter_name")["value"].to_dict()
     # print(last_params)
         
@@ -223,7 +256,11 @@ def predictions(die):
                 avg = v["baseline"]
                 min_r = v["lower_tolerance"]
                 max_r = v["upper_tolerance"]
-                cn  = safe_cn(col)
+                if(die != 'S16'):
+                    cn  = safe_cn(col)
+                else:
+                    cn = col
+
                 #If value in range and within percetange deviation
                 feats[f"{cn}_inrange"] = int(min_r <= val <= max_r)
                 pct = (val - avg) / avg if avg != 0 else 0.0
@@ -244,7 +281,12 @@ def predictions(die):
             continue
         # print(model_path)
         model = pickle.load(open(model_path, 'rb'))
+        # print("Scaler expects:", model['scaler'].feature_names_in_.tolist())
+        # print("df_input has:", feat_datasets[defect].columns.tolist())
+        
         df_input = feat_datasets[defect][model['scaler'].feature_names_in_]
+        # nan_cols = df_input.columns[df_input.isnull().any()].tolist()
+        # print("NaN columns:", nan_cols)
         X_scaled = model['scaler'].transform(df_input)
         X_pca    = model['pca'].transform(X_scaled)
         X_cca    = model['cca'].transform(X_pca)

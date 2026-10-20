@@ -9,6 +9,32 @@ from services.config import (
     DB_CONFIG
 )
 
+PARAM_MAPPING = {
+    "cycletime_value_sec": "cycle_time",
+    "DIE-CLOSE CORE IN TIME": "die_close_core_in_time",
+    "POURING_step_value_sec": "pouring_time",
+    "SHOT_FWD_step_value_sec": "shot_fwd_time",
+    "COOLING_step_value_sec": "curing_time",
+    "DIE_OPEN_CORE_OUT_step_value_sec": "die_open_core_out_time",
+    "EJECTOR_step_value_sec": "ejector_time",
+    "EXTRACTOR_step_value_sec": "extract_time",
+    "SPRAY_step_value_sec": "spray_time",
+    "SPEED_1_m_sec_value": "v1_speed",
+    "SPEED_2_m_sec_value": "v2_speed",
+    "SPEED_3_m_sec_value": "v3_speed",
+    "SPEED_4_m_sec_value": "v4_speed",
+    "ACC_POSITION_1_mm_value": "accel_point",
+    "DEACC_POSITION_1_mm_value": "deaccel_point",
+    "INTESIFICAITON_TIME_msec_value": "intensification_time",
+    "MATEL_PRESSURE_Mpa_value": "metal_pressure",
+    "BISCUIT_THICKNESS_mm_value": "biscuit_thickness",
+    "CLAMP_FORCE__value": "clamp_force_pct",
+    "CLAMP_TONNAGE_MN_value": "clamp_tonnage",
+    "SHOT_ACC_PRESSURE_value": "shot_acc_pressure",
+    "INTESIFICAITON_ACC_PRESSUREvalue": "intensification_acc_pressure",
+    "METAL_TEMP_value": "furnace_metal_temp",
+}
+
 names_UOM = {
     'accel_point': 'mm',
     'biscuit_thickness': 'mm',
@@ -74,8 +100,9 @@ def main(machine_id, die, start_date=None, end_date=None):
         print("[calibrate_params] No operating parameters found for selected filter criteria.")
         return [{}, 0]
 
-    part_ids = df_raw["id_part"].unique().tolist()
+    # part_ids = df_raw["id_part"].unique().tolist()
     # print("Part Ids seen: ", part_ids)
+    print("Recieved parts for calculation")
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     param_names = [col for col in df.columns if col not in ["id_part", "id_die"]]
     df.columns.name = None
@@ -89,6 +116,7 @@ def main(machine_id, die, start_date=None, end_date=None):
     mask = ~df["id_part"].isin(existing_ids)
     df = df[mask]
 
+    print("Removed defective parts from list")
 
     bl_params = {}
     sub = df[df["id_die"] == die].drop(columns=["id_die"]).reset_index(drop=True)
@@ -108,7 +136,10 @@ def main(machine_id, die, start_date=None, end_date=None):
             new_avg = avg
             new_tol = tol
 
-        uom = names_UOM.get(param, "")
+        # if die == 'S16':
+        #     uom = names_UOM.get(PARAM_MAPPING[param], "")
+        # else:
+        uom = names_UOM.get(param, "")  
         
         bl_params[param] = (new_avg, new_tol, max(0, new_avg - new_tol), new_avg + new_tol, uom)
     print("Ranges calculated: ", bl_params)

@@ -9,6 +9,32 @@ from services.config import (
     DB_CONFIG
 )
 
+PARAM_MAPPING = {
+    "cycletime_value_sec": "cycle_time",
+    "DIE-CLOSE CORE IN TIME": "die_close_core_in_time",
+    "POURING_step_value_sec": "pouring_time",
+    "SHOT_FWD_step_value_sec": "shot_fwd_time",
+    "COOLING_step_value_sec": "curing_time",
+    "DIE_OPEN_CORE_OUT_step_value_sec": "die_open_core_out_time",
+    "EJECTOR_step_value_sec": "ejector_time",
+    "EXTRACTOR_step_value_sec": "extract_time",
+    "SPRAY_step_value_sec": "spray_time",
+    "SPEED_1_m_sec_value": "v1_speed",
+    "SPEED_2_m_sec_value": "v2_speed",
+    "SPEED_3_m_sec_value": "v3_speed",
+    "SPEED_4_m_sec_value": "v4_speed",
+    "ACC_POSITION_1_mm_value": "accel_point",
+    "DEACC_POSITION_1_mm_value": "deaccel_point",
+    "INTESIFICAITON_TIME_msec_value": "intensification_time",
+    "MATEL_PRESSURE_Mpa_value": "metal_pressure",
+    "BISCUIT_THICKNESS_mm_value": "biscuit_thickness",
+    "CLAMP_FORCE__value": "clamp_force_pct",
+    "CLAMP_TONNAGE_MN_value": "clamp_tonnage",
+    "SHOT_ACC_PRESSURE_value": "shot_acc_pressure",
+    "INTESIFICAITON_ACC_PRESSUREvalue": "intensification_acc_pressure",
+    "METAL_TEMP_value": "furnace_metal_temp",
+}
+
 names_UOM = {
     'accel_point': 'mm',
     'biscuit_thickness': 'mm',
@@ -62,7 +88,7 @@ def get_latest_parameters(machine: str = None, die: str = None):
             "baseline": float(row["baseline"]),
             "min_range": float(row["lower_tolerance"]),
             "max_range": float(row["upper_tolerance"]),
-            "unit": names_UOM[row["parameter_name"]]
+            "unit": names_UOM[PARAM_MAPPING[row["parameter_name"]]] if die == "S16" else names_UOM[row["parameter_name"]],
             } for _, row in df.iterrows()
         }
         # print("Result of latest in calibration page: ", result )
@@ -91,6 +117,7 @@ def compute_calibration_ranges(
         logger.exception("compute_calibration_ranges failed for machine=%s die=%s", machine, die)
         raise
 
+    print("Calculated vals recieved")
     vals = {
         name: {
             # Wrap everything in float() to strip away NumPy np.float64 types
@@ -102,7 +129,7 @@ def compute_calibration_ranges(
         for name in baselines
     }
     
-    
+    print("Calculated vals sent")
     return {
         "ranges": vals,
         # Cast num_samples to standard int
