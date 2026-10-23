@@ -32,24 +32,41 @@ def normalize_die_name(die: Optional[str]) -> str:
     return cleaned if cleaned != "ALL" else "All"
 
 
-def categorize_defect(raw_type: Optional[str]):
-    """Map raw database defect strings into standardized categories and colors."""
-    d = (raw_type or "").strip().lower()
-    if not d:
-        return "Others", "bg-gray-400", "#94A3B8"
-    if "non-filling" in d or "pre filling" in d:
-        return "Non-filling", "bg-cyan-400", "#22D3EE"
+# Single source of truth for defect categories
+TARGET_DEFECTS = [
+    "Blow_Hole",
+    "Crack",
+    "Non_filling",
+    "Porosity",
+    "Shrinkage",
+    "Chipoff",
+]
+
+TARGET_DEFECT_FILTER_SQL = "pq.defect_type ~* 'non[- _]?filling|pre[- _]?filling|blow[- _]?hole|porosity|shrinkage|chip[- _]?off|crack'"
+
+
+def categorize_defect(raw_type: Optional[str]) -> Optional[str]:
+    """
+    Map raw database defect strings strictly into one of TARGET_DEFECTS.
+    Returns None if raw_type does not belong to the six target defect categories.
+    'Others' is strictly excluded from defect categories and calculations.
+    """
+    if not raw_type:
+        return None
+    d = raw_type.strip().lower().replace("_", " ")
+    if "non-filling" in d or "non filling" in d or "pre filling" in d:
+        return "Non_filling"
     if "blow hole" in d or "blowhole" in d:
-        return "Blowhole", "bg-blue-400", "#3B82F6"
+        return "Blow_Hole"
     if "porosity" in d:
-        return "Porosity", "bg-yellow-400", "#FACC15"
+        return "Porosity"
     if "shrinkage" in d:
-        return "Shrinkage", "bg-pink-500", "#EC4899"
-    if "chip-off" in d or "chipoff" in d:
-        return "Chip-off", "bg-green-400", "#34D399"
+        return "Shrinkage"
+    if "chip-off" in d or "chipoff" in d or "chip off" in d:
+        return "Chipoff"
     if "crack" in d:
-        return "Crack", "bg-red-500", "#EF4444"
-    return "Others", "bg-gray-400", "#94A3B8"
+        return "Crack"
+    return None
 
 
 @router.get("/filters")
@@ -216,14 +233,14 @@ def fetch_stats_from_cursor(
         end_date=end_date,
     )
 
-    # Query 1: Total parts & Total defective parts
+    # Query 1: Total parts & Total defective parts (restricted strictly to TARGET_DEFECTS)
     count_sql = f"""
         SELECT 
             COUNT(DISTINCT p.id_part) AS total_parts,
             COUNT(DISTINCT pq.id_part) AS defective_parts
         FROM rico.part p
         LEFT JOIN rico.client c ON p.id_client = c.id_client
-        LEFT JOIN rico.part_quality pq ON p.id_part = pq.id_part
+        LEFT JOIN rico.part_quality pq ON p.id_part = pq.id_part AND {TARGET_DEFECT_FILTER_SQL}
         WHERE {where_sql};
     """
     cur.execute(count_sql, params)
@@ -233,7 +250,7 @@ def fetch_stats_from_cursor(
 
     defect_rate = round((defective_parts / total_parts * 100), 2) if total_parts > 0 else 0.0
 
-    # Query 2: Defect category breakdown
+    # Query 2: Defect category breakdown (filtered to TARGET_DEFECTS only)
     defect_sql = f"""
         SELECT 
             pq.defect_type,
@@ -241,33 +258,31 @@ def fetch_stats_from_cursor(
         FROM rico.part_quality pq
         JOIN rico.part p ON pq.id_part = p.id_part
         LEFT JOIN rico.client c ON p.id_client = c.id_client
-        WHERE {where_sql}
+        WHERE {where_sql} AND {TARGET_DEFECT_FILTER_SQL}
         GROUP BY pq.defect_type
         ORDER BY count DESC;
     """
     cur.execute(defect_sql, params)
     raw_defects = cur.fetchall()
 
-    # Aggregate by standardized category
+    # Aggregate strictly by TARGET_DEFECTS categories
     category_counts = defaultdict(int)
-    category_meta = {}
 
     for raw_name, cnt in raw_defects:
-        cat_name, color, hex_color = categorize_defect(raw_name)
-        category_counts[cat_name] += cnt
-        if cat_name not in category_meta:
-            category_meta[cat_name] = {"color": color, "hex": hex_color}
+        cat_name = categorize_defect(raw_name)
+        if cat_name and cat_name in TARGET_DEFECTS:
+            category_counts[cat_name] += cnt
 
     sorted_categories = sorted(category_counts.items(), key=lambda x: x[1], reverse=True)
-    total_defect_records = sum(category_counts.values()) or defective_parts
+    # The denominator for defect percentage is the sum of target defect records only
+    total_target_defects = sum(category_counts.values())
 
     defects_breakdown = []
     chart_data = []
 
     for cat_name, cnt in sorted_categories:
-        pct_defects = round((cnt / total_defect_records * 100), 2) if total_defect_records > 0 else 0.0
+        pct_defects = round((cnt / total_target_defects * 100), 2) if total_target_defects > 0 else 0.0
         pct_rate = round((cnt / total_parts * 100), 2) if total_parts > 0 else 0.0
-        meta = category_meta.get(cat_name, {"color": "bg-gray-400", "hex": "#94A3B8"})
 
         defects_breakdown.append({
             "name": cat_name,
@@ -275,15 +290,11 @@ def fetch_stats_from_cursor(
             "formatted_count": f"{cnt:,}",
             "percent": f"{pct_defects:.2f}%",
             "rate": f"{pct_rate:.2f}%",
-            "color": meta["color"],
-            "hex": meta["hex"],
-            "width": f"{min(100, max(2, round(pct_defects)))}%",
         })
 
         chart_data.append({
             "name": cat_name,
             "value": cnt,
-            "color": meta["hex"],
         })
 
     active_die_str = normalized_die if normalized_die != "All" else "All Dies"
@@ -416,8 +427,8 @@ def compare_periods(
             overall_status = "unchanged"
             status_text = "Defect rate remained identical across both periods"
 
-        # Combine all defect categories from both periods
-        all_categories = sorted(set(list(p1["category_counts"].keys()) + list(p2["category_counts"].keys())))
+        # Combine all defect categories from both periods (restricted strictly to TARGET_DEFECTS)
+        all_categories = [c for c in TARGET_DEFECTS if (c in p1["category_counts"] or c in p2["category_counts"])]
         defect_comparison = []
 
         p1_parts = p1["summary"]["total_parts"]
@@ -510,7 +521,7 @@ def get_longitudinal_defects(
             end_date=end_date,
         )
 
-        # 1. Total parts and defective parts per time bucket
+        # 1. Total parts and defective parts per time bucket (restricted to TARGET_DEFECTS)
         bucket_sql = f"""
             SELECT 
                 DATE_TRUNC('{clean_interval}', p.manufactored_on)::date AS bucket_date,
@@ -518,7 +529,7 @@ def get_longitudinal_defects(
                 COUNT(DISTINCT pq.id_part) AS defective_parts
             FROM rico.part p
             LEFT JOIN rico.client c ON p.id_client = c.id_client
-            LEFT JOIN rico.part_quality pq ON p.id_part = pq.id_part
+            LEFT JOIN rico.part_quality pq ON p.id_part = pq.id_part AND {TARGET_DEFECT_FILTER_SQL}
             WHERE p.manufactored_on IS NOT NULL AND {where_sql}
             GROUP BY bucket_date
             ORDER BY bucket_date ASC;
@@ -526,7 +537,7 @@ def get_longitudinal_defects(
         cur.execute(bucket_sql, params)
         bucket_rows = cur.fetchall()
 
-        # 2. Defect counts per bucket and defect type
+        # 2. Defect counts per bucket and defect type (restricted to TARGET_DEFECTS)
         defect_bucket_sql = f"""
             SELECT 
                 DATE_TRUNC('{clean_interval}', p.manufactored_on)::date AS bucket_date,
@@ -535,7 +546,7 @@ def get_longitudinal_defects(
             FROM rico.part_quality pq
             JOIN rico.part p ON pq.id_part = p.id_part
             LEFT JOIN rico.client c ON p.id_client = c.id_client
-            WHERE p.manufactored_on IS NOT NULL AND {where_sql}
+            WHERE p.manufactored_on IS NOT NULL AND {where_sql} AND {TARGET_DEFECT_FILTER_SQL}
             GROUP BY bucket_date, pq.defect_type
             ORDER BY bucket_date ASC;
         """
@@ -548,12 +559,16 @@ def get_longitudinal_defects(
 
         for b_date, raw_name, cnt in defect_bucket_rows:
             date_str = b_date.strftime("%Y-%m-%d") if hasattr(b_date, "strftime") else str(b_date)
-            cat_name, _, _ = categorize_defect(raw_name)
+            cat_name = categorize_defect(raw_name)
+            if not cat_name or cat_name not in TARGET_DEFECTS:
+                continue
             bucket_defects[date_str][cat_name] += cnt
             all_categories.add(cat_name)
 
         # Build timeline points
         timeline = []
+        categories_in_timeline = [c for c in TARGET_DEFECTS if c in all_categories]
+
         for b_date, total, defective in bucket_rows:
             date_str = b_date.strftime("%Y-%m-%d") if hasattr(b_date, "strftime") else str(b_date)
             total = total or 0
@@ -572,8 +587,8 @@ def get_longitudinal_defects(
                 "defect_rate": rate,
                 "defects": dict(bucket_defects.get(date_str, {})),
             }
-            # Flatten top categories into point for convenient chart binding
-            for cat in all_categories:
+            # Flatten target categories into point for convenient chart binding
+            for cat in TARGET_DEFECTS:
                 point[cat] = bucket_defects.get(date_str, {}).get(cat, 0)
 
             timeline.append(point)
@@ -581,7 +596,7 @@ def get_longitudinal_defects(
         return {
             "interval": clean_interval,
             "period_label": period_label,
-            "categories": sorted(all_categories),
+            "categories": categories_in_timeline,
             "timeline": timeline,
             "total_buckets": len(timeline),
         }
