@@ -70,8 +70,8 @@ def update_date_path() -> str:
     date_from =  date.today().strftime("%Y-%m-%dT06:00:00")
     date_to =  (date.today() + timedelta(days=1)).strftime("%Y-%m-%dT06:00:00")
 
-    # date_from = "2026-10-01T06:00:00"
-    # date_to = "2026-10-12T06:00:00"
+    # date_from = "2026-10-10T06:00:00"
+    # date_to = "2026-10-19T06:00:00"
     data_path = f"/reports/report/historical?dateFrom={date_from}&dateTo={date_to}&page={PAGE}&pageSize={PAGE_SIZE}&partCategory=HPDC&clean=1"
     return data_path
 
@@ -111,7 +111,12 @@ def get_iot_data(token: str, data_path):
     if not rows:
         print("[defect_update] No rows returned")
         return
-    
+        
+    # target_shot = 1758
+    # row = next((r for r in rows if r.get("shot", {}).get("number") == target_shot), None)
+    # if row is None:
+    #     print("[shot_update] No row with shot_number=%s", target_shot)
+        # return
     row = rows[0]
     process_data(row)
     

@@ -1,6 +1,6 @@
 import requests
 import psycopg2
-
+import sys
 from datetime import date, datetime, timezone, timedelta
 
 from services.config import (
@@ -1309,10 +1309,11 @@ if __name__ == "__main__":
 
     # Example:
     # Backfill all of August 2026
-
+    month_arg = sys.argv[1]
+    year_arg = sys.argv[2]
     update_month(
-        year=2026,
-        month=9,
+        year=year_arg,
+        month=month_arg,
     )
     # update_date_range(
     #     start_date="2026-09-01",

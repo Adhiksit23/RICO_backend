@@ -136,10 +136,10 @@ def main(machine_id, die, start_date=None, end_date=None):
             new_avg = avg
             new_tol = tol
 
-        # if die == 'S16':
-        #     uom = names_UOM.get(PARAM_MAPPING[param], "")
-        # else:
-        uom = names_UOM.get(param, "")  
+        if die == 'S16':
+            uom = names_UOM.get(PARAM_MAPPING[param], "")
+        else:
+            uom = names_UOM.get(param, "")  
         
         bl_params[param] = (new_avg, new_tol, max(0, new_avg - new_tol), new_avg + new_tol, uom)
     print("Ranges calculated: ", bl_params)
