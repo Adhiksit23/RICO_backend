@@ -1309,8 +1309,8 @@ if __name__ == "__main__":
 
     # Example:
     # Backfill all of August 2026
-    month_arg = sys.argv[1]
-    year_arg = sys.argv[2]
+    month_arg = int(sys.argv[1])
+    year_arg = int( sys.argv[2])
     update_month(
         year=year_arg,
         month=month_arg,
