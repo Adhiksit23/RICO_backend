@@ -375,6 +375,7 @@ def process_data(
 
     shot = data.get("shot") or {}
     part = data.get("part") or {}
+    
 
     parameters = shot.get("parameters")
 
@@ -419,6 +420,8 @@ def process_data(
         recorded_stamp
     )
 
+    customer_qr = part.get("customerQr") or {}
+
     # --------------------------------------------------------
     # PART
     # --------------------------------------------------------
@@ -431,18 +434,23 @@ def process_data(
             id_client,
             id_machine,
             manufactored_on,
-            created_at
+            created_at,
+            customer_qr
         )
         VALUES (
-            %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s
         )
 
         ON CONFLICT (id_part)
         DO UPDATE SET
+            id_part = EXCLUDED.id_part,
             id_die = EXCLUDED.id_die,
             id_client = EXCLUDED.id_client,
             id_machine = EXCLUDED.id_machine,
-            manufactored_on = EXCLUDED.manufactored_on
+            manufactored_on = EXCLUDED.manufactored_on,
+            updated_at = EXCLUDED.updated_at
+
+
         """,
         (
             part_id,
@@ -451,6 +459,7 @@ def process_data(
             id_machine,
             date_ist,
             datetime.now(),
+            customer_qr,
         )
     )
 
