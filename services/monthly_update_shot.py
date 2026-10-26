@@ -421,6 +421,7 @@ def process_data(
     )
 
     customer_qr = part.get("customerQr") or {}
+    print(f"Customer QR for {part_id} is {customer_qr}")
 
     # --------------------------------------------------------
     # PART
@@ -448,7 +449,8 @@ def process_data(
             id_client = EXCLUDED.id_client,
             id_machine = EXCLUDED.id_machine,
             manufactored_on = EXCLUDED.manufactored_on,
-            updated_at = EXCLUDED.updated_at
+            updated_at = EXCLUDED.updated_at,
+            customer_qr = COALESCE(NULLIF(EXCLUDED.customer_qr, ''), rico.part.customer_qr)
 
 
         """,
