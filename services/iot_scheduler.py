@@ -140,9 +140,9 @@ def run_iot_sync(trigger: str = "scheduler") -> dict[str, Any]:
 
         data_path = update_date_path_shot()
         token = get_auth_token_shot()
-        # get_iot_data_shot(token, data_path)
-        # result["shot_sync"] = "ok"
-        # logger.info("[iot-sync] Shot sync completed (%s)", trigger)
+        get_iot_data_shot(token, data_path)
+        result["shot_sync"] = "ok"
+        logger.info("[iot-sync] Shot sync completed (%s)", trigger)
 
         if IOT_SYNC_INCLUDE_LEGACY:
             now = datetime.now(timezone.utc)
