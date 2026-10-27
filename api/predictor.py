@@ -100,6 +100,7 @@ def update_IOT():
     (IOT_SYNC_ENABLED=true) so sync continues when the browser is closed.
     """
     result = run_iot_sync(trigger="manual_api")
+    result = "skipped"
     if result.get("status") == "skipped":
         return result
     if result.get("status") == "error":

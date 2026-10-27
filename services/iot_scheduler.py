@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
@@ -22,6 +22,7 @@ from services.config import (
     IOT_SYNC_ENABLED,
     IOT_SYNC_INCLUDE_LEGACY,
     IOT_SYNC_INTERVAL_SECONDS,
+    IOT_LEGACY_SYNC_INTERVAL_SECONDS,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,12 +32,14 @@ STATE_FILE = Path(__file__).resolve().parent.parent / "data" / "iot_scheduler_st
 
 _scheduler: Optional[BackgroundScheduler] = None
 _sync_lock = threading.Lock()
+_legacy_sync_lock = threading.Lock()
 _state_lock = threading.Lock()
 
 _last_run_at: Optional[str] = None
 _last_result: Optional[dict[str, Any]] = None
 _desired_running: bool = False
 _updated_by: Optional[str] = None
+_last_legacy_run_at: Optional[datetime] = None
 
 
 def _utc_now_iso() -> str:
@@ -109,7 +112,7 @@ def run_iot_sync(trigger: str = "scheduler") -> dict[str, Any]:
     Run the PLC shot sync (and optional legacy historical sync).
     Never raises — safe for APScheduler and HTTP wrappers.
     """
-    global _last_run_at, _last_result
+    global _last_run_at, _last_result, _last_legacy_run_at
 
     if not _sync_lock.acquire(blocking=False):
         logger.info("[iot-sync] Skipped (%s) — previous run still in progress", trigger)
@@ -137,18 +140,41 @@ def run_iot_sync(trigger: str = "scheduler") -> dict[str, Any]:
 
         data_path = update_date_path_shot()
         token = get_auth_token_shot()
-        get_iot_data_shot(token, data_path)
-        result["shot_sync"] = "ok"
-        logger.info("[iot-sync] Shot sync completed (%s)", trigger)
+        # get_iot_data_shot(token, data_path)
+        # result["shot_sync"] = "ok"
+        # logger.info("[iot-sync] Shot sync completed (%s)", trigger)
 
         if IOT_SYNC_INCLUDE_LEGACY:
-            from services.predictor import get_auth_token, get_iot_data, update_date_path
+            now = datetime.now(timezone.utc)
+            should_run_legacy = False
+            if _last_legacy_run_at is None:
+                should_run_legacy = True
+            else:
+                elapsed = (now - _last_legacy_run_at).total_seconds()
+                if elapsed >= IOT_LEGACY_SYNC_INTERVAL_SECONDS:
+                    should_run_legacy = True
+            if should_run_legacy:
+                if not _legacy_sync_lock.acquire(blocking=False):
+                    logger.info("[iot-sync] Legacy sync skipped (%s) — previous legacy run still in progress", trigger)
+                    result["legacy_sync"] = "skipped"
+                else:
+                    try:
+                        from services.predictor import get_auth_token, get_iot_data, update_date_path
 
-            legacy_path = update_date_path()
-            legacy_token = get_auth_token()
-            get_iot_data(legacy_token, legacy_path)
-            result["legacy_sync"] = "ok"
-            logger.info("[iot-sync] Legacy sync completed (%s)", trigger)
+                        legacy_path = update_date_path()
+                        legacy_token = get_auth_token()
+                        get_iot_data(legacy_token, legacy_path)
+                        result["legacy_sync"] = "ok"
+                        _last_legacy_run_at = now
+                        logger.info("[iot-sync] Legacy sync completed (%s)", trigger)
+                    except Exception as exc:
+                        result["legacy_sync"] = "error"
+                        logger.exception("[iot-sync] Legacy sync failed (%s): %s", trigger, exc)
+                    finally:
+                        _legacy_sync_lock.release()
+            else:
+                result["legacy_sync"] = "skipped"
+                logger.info("[iot-sync] Legacy sync skipped (interval not elapsed) (%s)", trigger)
 
         return result
     except Exception as exc:

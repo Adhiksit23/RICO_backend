@@ -113,6 +113,7 @@ def process_data(data):
 
     
     recorded_stamp = data['shot']['recordedAt']
+    customer_qr = data['part']['customerQr']
     date_ist = date_processing(date=recorded_stamp)
 
     #Connect to database
@@ -134,14 +135,15 @@ def process_data(data):
 
     #Start entering data
     cur.execute("""
-        INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at, customer_qr)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (id_part) DO UPDATE SET
             id_die = EXCLUDED.id_die,
             id_client = EXCLUDED.id_client,
             id_machine = EXCLUDED.id_machine,
-            manufactored_on = EXCLUDED.manufactored_on
-""", (part_id, id_die, id_client, id_machine, date_ist, datetime.now()))
+            manufactored_on = EXCLUDED.manufactored_on,
+            customer_qr = COALESCE(NULLIF(EXCLUDED.customer_qr, ''), rico.part.customer_qr)
+""", (part_id, id_die, id_client, id_machine, date_ist, datetime.now(), customer_qr))
 
     for param, val in data['shot']['parameters'].items():
         if(param not in PARAM_LIST):

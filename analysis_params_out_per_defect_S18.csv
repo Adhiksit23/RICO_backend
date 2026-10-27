@@ -1,8 +1,0 @@
-group,parts,avg_params_out,median_params_out,max_params_out,pct_with_0_out,pct_with_1+_out,pct_with_2+_out,pct_with_3+_out
-Blow Hole,209,4.6,4.0,10,0.0,100.0,100.0,96.2
-Crack,34,5.85,6.0,11,0.0,100.0,100.0,97.1
-Non filling,4,5.75,5.5,8,0.0,100.0,100.0,100.0
-Porosity,2,4.0,4.0,4,0.0,100.0,100.0,100.0
-Shrinkage,8,4.75,5.0,6,0.0,100.0,100.0,87.5
-Chipoff,6,5.5,5.5,9,0.0,100.0,100.0,100.0
-ALL,263,4.8,5.0,11,0.0,100.0,100.0,96.2

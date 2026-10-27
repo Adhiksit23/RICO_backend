@@ -1,8 +1,0 @@
-group,0 param(s) out,1 param(s) out,2 param(s) out,3 param(s) out,4+ param(s) out
-Blow Hole,0,0,8,40,161
-Crack,0,0,1,1,32
-Non filling,0,0,0,0,4
-Porosity,0,0,0,0,2
-Shrinkage,0,0,1,1,6
-Chipoff,0,0,0,1,5
-ALL,0,0,10,43,210

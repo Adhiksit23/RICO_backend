@@ -70,3 +70,4 @@ IOT_SYNC_ENABLED = _env_bool("IOT_SYNC_ENABLED", False)
 IOT_SYNC_INTERVAL_SECONDS = max(30, _env_int("IOT_SYNC_INTERVAL_SECONDS", 60))
 # Also run legacy /reports historical sync from predictor.py
 IOT_SYNC_INCLUDE_LEGACY = _env_bool("IOT_SYNC_INCLUDE_LEGACY", False)
+IOT_LEGACY_SYNC_INTERVAL_SECONDS = max(30, _env_int("IOT_LEGACY_SYNC_INTERVAL_SECONDS", 300))
