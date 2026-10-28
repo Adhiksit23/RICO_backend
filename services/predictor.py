@@ -15,7 +15,7 @@ from datetime import date, timedelta, timezone
 import requests
 from .data_processing import process_data, store_quality_pred
 import os
-from .config import DB_CONFIG, IOT_BASE_URL, IOT_USERNAME, IOT_PASSWORD, IOT_AUTH_TIMEOUT, IOT_DATA_TIMEOUT
+from .config import DB_CONFIG, IOT_BASE_URL, IOT_USERNAME, IOT_PASSWORD, IOT_AUTH_TIMEOUT, IOT_DATA_TIMEOUT, IOT_AUTH_PATH
 
 # Cache to track last read position for batch IoT data
 _last_read_shot_number = None
@@ -23,8 +23,7 @@ _last_read_serial_no = None
 _last_read_timestamp = None
 _last_seen_page = 1
 
-BASE_URL = f"{IOT_BASE_URL}/v1"
-AUTH_PATH = "/auth/login"
+BASE_URL = f"{IOT_BASE_URL}"
  
 USERNAME = IOT_USERNAME
 PASSWORD = IOT_PASSWORD
@@ -79,14 +78,14 @@ def update_date_path() -> str:
 
     # date_from = "2026-10-10T06:00:00"
     # date_to = "2026-10-19T06:00:00"
-    data_path = f"/reports/report/historical?dateFrom={date_from}&dateTo={date_to}&page={_last_seen_page}&pageSize={PAGE_SIZE}&partCategory=HPDC&clean=1"
+    data_path = f"/v1/reports/report/historical?dateFrom={date_from}&dateTo={date_to}&page={_last_seen_page}&pageSize={PAGE_SIZE}&partCategory=HPDC&clean=1"
     return data_path
 
 
 
 def get_auth_token() -> str:
     """Step 1: POST credentials, pull the token out of the JSON response."""
-    url = f"{BASE_URL}{AUTH_PATH}"
+    url = f"{BASE_URL}{IOT_AUTH_PATH}"
     payload = {"username": USERNAME, "password": PASSWORD}
  
     resp = requests.post(url, json=payload, timeout=IOT_AUTH_TIMEOUT)

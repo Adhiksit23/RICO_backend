@@ -18,13 +18,14 @@ from services.config import (
     IOT_DATA_BASE_URL,
     IOT_DATA_TIMEOUT,
     IOT_MACHINE_IP,
-    IOT_PASSWORD,
-    IOT_USERNAME,
+    IOT_SHOT_PASSWORD,
+    IOT_SHOT_USERNAME,
+    IOT_AUTH_PATH_SHOT
 )
 
 logger = logging.getLogger(__name__)
 
-AUTH_PATH = "/v1/auth/login"
+
 TOKEN_JSON_PATH = "token"
 
 DIE_LIST = ["S14", "S16", "S17", "S18"]
@@ -98,6 +99,7 @@ def update_date_path_shot() -> str:
             "from": date_from,
             "to": date_to,
             "limit": LIMIT,
+            "page": PAGE,
             "shift": SHIFT_CODE,
             "shotResult": SHOT_RESULT,
         }
@@ -107,19 +109,19 @@ def update_date_path_shot() -> str:
 
 def get_auth_token_shot() -> str:
     """POST credentials, return Bearer token string."""
-    if not IOT_USERNAME or not IOT_PASSWORD:
+    if not IOT_SHOT_USERNAME or not IOT_SHOT_PASSWORD:
         raise ValueError(
             "IOT_USERNAME / IOT_PASSWORD are not set. Add them to the backend .env file."
         )
 
-    url = f"{IOT_BASE_URL}{AUTH_PATH}"
-    payload = {"username": IOT_USERNAME, "password": IOT_PASSWORD}
+    url = f"{IOT_DATA_BASE_URL}{IOT_AUTH_PATH_SHOT}"
+    payload = {"username": IOT_SHOT_USERNAME, "password": IOT_SHOT_PASSWORD}
 
     resp = requests.post(url, json=payload, timeout=IOT_AUTH_TIMEOUT)
     resp.raise_for_status()
     body = resp.json()
 
-    token = body
+    token = body['data']
     for key in TOKEN_JSON_PATH.split("."):
         token = token[key]
 

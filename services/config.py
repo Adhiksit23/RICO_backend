@@ -60,9 +60,14 @@ IOT_DATA_BASE_URL = os.environ.get(
 ).rstrip("/")
 IOT_USERNAME = os.environ.get("IOT_USERNAME", "")
 IOT_PASSWORD = os.environ.get("IOT_PASSWORD", "")
+IOT_SHOT_USERNAME = os.environ.get("IOT_SHOT_USERNAME", "")
+IOT_SHOT_PASSWORD = os.environ.get("IOT_SHOT_PASSWORD", "")
 IOT_MACHINE_IP = os.environ.get("IOT_MACHINE_IP", "192.168.117.201")
 IOT_AUTH_TIMEOUT = _env_int("IOT_AUTH_TIMEOUT", 15)
 IOT_DATA_TIMEOUT = _env_int("IOT_DATA_TIMEOUT", 30)
+IOT_AUTH_PATH_SHOT = os.environ.get("IOT_AUTH_PATH_SHOT", "")
+IOT_AUTH_PATH = os.environ.get("IOT_AUTH_PATH", "")
+
 
 # Backend scheduler (replaces frontend BackgroundUpdater)
 # Keep false on laptop/dev when plant IoT is unreachable.
