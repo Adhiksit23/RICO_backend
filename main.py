@@ -15,6 +15,7 @@ from api.calibrator import router as calibrator_router
 from api.trainer import router as trainer_router
 from api.calibration_api import router as calibration_router
 from api.iot import router as iot_router
+from api.reports import router as reports_router
 from services.iot_scheduler import start_iot_scheduler_on_boot, shutdown_iot_scheduler
 
 logging.basicConfig(
@@ -68,6 +69,7 @@ app.include_router(calibrator_router)
 app.include_router(trainer_router)
 app.include_router(calibration_router)
 app.include_router(iot_router)
+app.include_router(reports_router)
 
 
 @app.get("/")
