@@ -187,10 +187,10 @@ def fetch_prescribed_parameters(
             for row in rows:
                 calib_id, die_id, machine_name, date_prov, param_name, baseline, lower_tol, upper_tol = row
                 if calib_id not in grouped:
-                    presc_id = f"RX-{date_prov.strftime('%Y%m') if hasattr(date_prov, 'strftime') else '202611'}-{die_id}-{calib_id:02d}"
+                    presc_id = str(calib_id)
                     grouped[calib_id] = {
-                        "machine_id": machine_name or "UBE 850T-02",
-                        "die_id": die_id or "S17",
+                        "machine_id": machine_name or "UBE 850T-2",
+                        "die_id": die_id or "S18",
                         "prescription_id": presc_id,
                         "date_provided": date_prov.strftime("%Y-%m-%d %H:%M") if hasattr(date_prov, "strftime") else str(date_prov),
                         "raw_params": {},
@@ -237,16 +237,16 @@ def fetch_prescribed_parameters(
 
     # Fallback default calibration sample if database has no rows yet
     if not records:
-        target_dies = [die] if die and die != "All" else ["S17", "S18"]
+        target_dies = [die] if die and die != "All" else ["S18", "S17"]
         for d in target_dies:
             p_dict: Dict[str, ParameterMinMeanMax] = {}
             for name, _ in REPORT_PARAMETERS:
                 p_dict[name] = ParameterMinMeanMax(min=10.0, mean=12.5, max=15.0)
             records.append(
                 PrescribedParameterRow(
-                    machine_id=str(machine) if machine and machine != "All" else "UBE 850T-02",
+                    machine_id=str(machine) if machine and machine != "All" else "UBE 850T-2",
                     die_id=str(d),
-                    prescription_id=f"RX-202611-{d}-01",
+                    prescription_id="75",
                     date_provided=datetime.now().strftime("%Y-%m-%d 08:30"),
                     parameters=p_dict,
                 )
@@ -311,9 +311,10 @@ def fetch_bellurbis_defects(
                 SELECT 
                     p.id_part,
                     p.id_die,
-                    COALESCE(m.name, p.id_machine::text, 'UBE 850T-02') as machine_name,
+                    COALESCE(m.name, p.id_machine::text, 'UBE 850T-2') as machine_name,
                     p.manufactored_on,
-                    p.customer_qr
+                    p.customer_qr,
+                    p.id_calibration_used
                 FROM rico.part p
                 LEFT JOIN rico.machine m ON p.id_machine::text = m.id_machine::text
                 LEFT JOIN rico.client c ON p.id_client = c.id_client
@@ -356,7 +357,7 @@ def fetch_bellurbis_defects(
 
                 today_str = datetime.now().strftime("%Y-%m-%d")
 
-                for part_id, die_id, machine_name, mfg_on, cust_qr in parts:
+                for part_id, die_id, machine_name, mfg_on, cust_qr, calib_used in parts:
                     mfg_date = mfg_on.strftime("%Y-%m-%d") if hasattr(mfg_on, "strftime") else str(mfg_on)[:10]
                     mfg_time = mfg_on.strftime("%H:%M:%S") if hasattr(mfg_on, "strftime") else "00:00:00"
 
@@ -399,17 +400,21 @@ def fetch_bellurbis_defects(
                         crack=format_pred("crack"),
                     )
 
+                    # customer_qr is blank if not assigned yet; prescription_id comes from id_calibration_used
+                    customer_qr_val = str(cust_qr).strip() if cust_qr else ""
+                    prescription_id_val = str(calib_used).strip() if calib_used is not None else ""
+
                     records.append(
                         BellurbisDefectRow(
                             source="Bellurbis",
                             today_date=today_str,
-                            machine_id=machine_name or "UBE 850T-02",
-                            die_id=die_id or "S17",
+                            machine_id=machine_name or "UBE 850T-2",
+                            die_id=die_id or "S18",
                             manufactured_date=mfg_date,
                             manufactured_time=mfg_time,
                             part_serial=str(part_id),
-                            customer_qr=str(cust_qr or f"QR-{die_id}-{part_id[-4:]}"),
-                            prescription_id=f"RX-202611-{die_id}-01",
+                            customer_qr=customer_qr_val,
+                            prescription_id=prescription_id_val,
                             predicted=predicted_data,
                             recorded=recorded_data,
                         )
@@ -422,33 +427,37 @@ def fetch_bellurbis_defects(
             if conn:
                 conn.close()
 
-    # Fallback sample rows if DB is empty / offline
+    # Fallback sample rows if DB is empty / offline — matches real RICO reference sample
     if not records:
         today_str = datetime.now().strftime("%Y-%m-%d")
         now_time = datetime.now()
-        for i in range(5):
-            serial = f"1104{942 + i:03d}2268{1 + i}"
-            is_def = (i == 1 or i == 3)
+        sample_serials = [
+            "1104135924619",
+            "1104135824618",
+            "1104135724617",
+            "1104135524616",
+            "1104135424615",
+        ]
+        for i, serial in enumerate(sample_serials):
+            is_def = (i == 1)
             records.append(
                 BellurbisDefectRow(
                     source="Bellurbis",
                     today_date=today_str,
-                    machine_id=machine if machine and machine != "All" else "UBE 850T-02",
-                    die_id=die if die and die != "All" else "S17",
+                    machine_id=machine if machine and machine != "All" else "UBE 850T-2",
+                    die_id=die if die and die != "All" else "S18",
                     manufactured_date=today_str,
                     manufactured_time=(now_time - timedelta(minutes=i * 2)).strftime("%H:%M:%S"),
                     part_serial=serial,
-                    customer_qr=f"QR-SUZ-2026-{91 + i:04d}",
-                    prescription_id=f"RX-202611-{die if die and die != 'All' else 'S17'}-01",
+                    customer_qr="",  # Blank as not assigned yet by RICO
+                    prescription_id="75",  # id_calibration_used from reference sample
                     predicted=DefectPredictionMap(
                         ok="DEFECT" if is_def else "OK",
                         blow_hole="1 (82%)" if i == 1 else "0",
-                        non_filling="1 (74%)" if i == 3 else "0",
                     ),
                     recorded=DefectRecordedMap(
                         ok="DEFECT" if is_def else "OK",
                         blow_hole="1" if i == 1 else "0",
-                        non_filling="1" if i == 3 else "0",
                     ),
                 )
             )
@@ -545,10 +554,10 @@ def generate_report_excel_workbook(
     align_left = Alignment(horizontal="left", vertical="center")
 
     # =========================================================================
-    # SHEET 1: Prescribed Parameter - Bellurbi
+    # SHEET 1: Prescription history
     # =========================================================================
     ws1 = wb.active
-    ws1.title = "Prescribed Parameter - Bellurbi"
+    ws1.title = "Prescription history"
     ws1.views.sheetView[0].showGridLines = True
 
     # Tier 1 Header: Groupings
@@ -605,9 +614,9 @@ def generate_report_excel_workbook(
         ws1.column_dimensions[col_letter].width = 18 if c_idx <= 4 else 14
 
     # =========================================================================
-    # SHEET 2: Bellurbis
+    # SHEET 2: Predicted vs Actual
     # =========================================================================
-    ws2 = wb.create_sheet(title="Bellurbis")
+    ws2 = wb.create_sheet(title="Predicted vs Actual")
     ws2.views.sheetView[0].showGridLines = True
 
     # Tier 1 Header

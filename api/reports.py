@@ -89,9 +89,9 @@ def export_report_excel(
     end_date: Optional[str] = Query(None, description="Custom period end date (YYYY-MM-DD)"),
 ):
     """
-    Generate and stream a 2-sheet Excel spreadsheet (.xlsx) matching Report_Structure_v6:
-      - Sheet 1: Prescribed Parameter - Bellurbi
-      - Sheet 2: Bellurbis (Predicted vs Actual Defects)
+    Generate and stream a 2-sheet Excel spreadsheet (.xlsx):
+      - Sheet 1: Prescription history
+      - Sheet 2: Predicted vs Actual
     """
     c = _clean_str(client, "All")
     m = _clean_str(machine, "All")
