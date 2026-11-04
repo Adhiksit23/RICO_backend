@@ -58,7 +58,7 @@ class DefectRecordedMap(BaseModel):
 
 
 class BellurbisDefectRow(BaseModel):
-    source: str = "Bellurbis"
+    source: str = "Neuriot labs"
     today_date: str
     machine_id: str
     die_id: str
@@ -406,7 +406,7 @@ def fetch_bellurbis_defects(
 
                     records.append(
                         BellurbisDefectRow(
-                            source="Bellurbis",
+                            source="Neuriot labs",
                             today_date=today_str,
                             machine_id=machine_name or "UBE 850T-2",
                             die_id=die_id or "S18",
@@ -442,7 +442,7 @@ def fetch_bellurbis_defects(
             is_def = (i == 1)
             records.append(
                 BellurbisDefectRow(
-                    source="Bellurbis",
+                    source="Neuriot labs",
                     today_date=today_str,
                     machine_id=machine if machine and machine != "All" else "UBE 850T-2",
                     die_id=die if die and die != "All" else "S18",
@@ -605,7 +605,7 @@ def generate_report_excel_workbook(
         current_row += 1
 
     # Footnote
-    fn_cell = ws1.cell(row=current_row + 1, column=1, value="Responsible: Bellurbis")
+    fn_cell = ws1.cell(row=current_row + 1, column=1, value="Responsible: Neuriot labs")
     fn_cell.font = Font(name=font_family, size=9, italic=True, bold=True, color="555555")
 
     # Column Widths
@@ -722,7 +722,7 @@ def generate_report_excel_workbook(
         current_row += 1
 
     # Footnote
-    fn_cell2 = ws2.cell(row=current_row + 1, column=1, value="Responsible: Bellurbis")
+    fn_cell2 = ws2.cell(row=current_row + 1, column=1, value="Responsible: Neuriot labs")
     fn_cell2.font = Font(name=font_family, size=9, italic=True, bold=True, color="555555")
 
     # Column Widths
