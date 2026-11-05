@@ -19,6 +19,7 @@ from services.predictor import (
     monitor_data
 )
 
+from services.data_processing import mismatch_tolerances
 from services.iot_scheduler import run_iot_sync
 
 
@@ -54,7 +55,7 @@ def monitor(die: str):
     Returns [parameter_data, calibration_ranges].
     """
     try:
-        data, ranges = monitor_data(die)
+        data, set_ranges = monitor_data(die)
     except Exception as exc:
         logger.exception("[/monitor] Failed to fetch monitor data for die=%s", die)
         raise HTTPException(
@@ -63,7 +64,7 @@ def monitor(die: str):
         ) from exc
 
     try:
-        ranges = get_latest_calibration(die=die)
+        latest_ranges = get_latest_calibration(die=die)
     except Exception as exc:
         logger.exception("[/monitor] Failed to fetch calibration ranges for die=%s", die)
         raise HTTPException(
@@ -71,7 +72,9 @@ def monitor(die: str):
             detail=f"Could not fetch calibration ranges for die '{die}': {str(exc)}",
         ) from exc
 
-    return [data, ranges]
+    alert = mismatch_tolerances(set_ranges, latest_ranges)
+
+    return [data, latest_ranges, alert]
 
 
 @router.get("/update")

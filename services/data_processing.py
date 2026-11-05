@@ -1,5 +1,6 @@
 import psycopg2
 import json
+import math
 from datetime import date, datetime, timezone, timedelta
 
 
@@ -188,3 +189,112 @@ def store_quality_pred(predictions, part, TARGET_DEFECTS, cur):
                     updated_at = EXCLUDED.updated_at
         """, (id_part, id_die, int(id_client), id_machine, TARGET_DEFECTS[i], predictions[i], datetime.now(), datetime.now()))
     return
+
+def _as_float(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(number) or math.isinf(number):
+        return None
+    return number
+
+
+def _percent_difference(monitor_value, calibration_value):
+    if monitor_value is None or calibration_value is None:
+        return None
+    base = abs(calibration_value)
+    if base == 0:
+        base = abs(monitor_value)
+    if base == 0:
+        return 0.0
+    return abs(monitor_value - calibration_value) / base * 100.0
+
+
+def _exceeds_percent(monitor_value, calibration_value, threshold_percent):
+    difference = _percent_difference(monitor_value, calibration_value)
+    if difference is None:
+        return False, None
+    return difference > threshold_percent, round(difference, 2)
+
+
+def mismatch_tolerances(set_ranges, latest_ranges, threshold_percent=15.0):
+    set_ranges = set_ranges or {}
+    latest_ranges = latest_ranges or {}
+
+    alert = {
+        "has_mismatch": False,
+        "count": 0,
+        "items": [],
+        "missing_in_calibration": sorted(set(set_ranges) - set(latest_ranges)),
+        "missing_in_monitor": sorted(set(latest_ranges) - set(set_ranges)),
+    }
+
+    for param, monitor in set_ranges.items():
+        if param not in latest_ranges:
+            continue
+
+        calibration = latest_ranges[param] or {}
+
+        m_lower = _as_float(monitor.get("recomended_lower_tolerance"))
+        m_upper = _as_float(monitor.get("recomended_upper_tolerance"))
+        m_baseline = _as_float(monitor.get("recomended_baseline"))
+
+        c_lower = _as_float(calibration.get("lower_tolerance"))
+        c_upper = _as_float(calibration.get("upper_tolerance"))
+        c_baseline = _as_float(calibration.get("baseline"))
+
+        lower_mismatch, lower_pct = _exceeds_percent(m_lower, c_lower, threshold_percent)
+        upper_mismatch, upper_pct = _exceeds_percent(m_upper, c_upper, threshold_percent)
+        baseline_mismatch, baseline_pct = _exceeds_percent(
+            m_baseline, c_baseline, threshold_percent
+        )
+
+        if not (lower_mismatch or upper_mismatch):
+            continue
+
+        alert["items"].append({
+            "parameter": param,
+            "monitor": {
+                "baseline": m_baseline,
+                "lower": m_lower,
+                "upper": m_upper,
+            },
+            "calibration": {
+                "baseline": c_baseline,
+                "lower": c_lower,
+                "upper": c_upper,
+            },
+            "diff": {
+                "lower": (
+                    None
+                    if m_lower is None or c_lower is None
+                    else round(m_lower - c_lower, 6)
+                ),
+                "upper": (
+                    None
+                    if m_upper is None or c_upper is None
+                    else round(m_upper - c_upper, 6)
+                ),
+                "baseline": (
+                    None
+                    if m_baseline is None or c_baseline is None
+                    else round(m_baseline - c_baseline, 6)
+                ),
+            },
+            "percent_diff": {
+                "lower": lower_pct,
+                "upper": upper_pct,
+                "baseline": baseline_pct,
+            },
+            "baseline_mismatch": baseline_mismatch,
+        })
+
+    alert["count"] = len(alert["items"])
+    alert["has_mismatch"] = bool(
+        alert["items"]
+        or alert["missing_in_calibration"]
+        or alert["missing_in_monitor"]
+    )
+
+    return alert
