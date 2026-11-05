@@ -114,6 +114,7 @@ def process_data(data):
     
     recorded_stamp = data['shot']['recordedAt']
     customer_qr = data['part']['customerQr']
+    print("Customer Qr code is: ", customer_qr)
     date_ist = date_processing(date=recorded_stamp)
 
     #Connect to database

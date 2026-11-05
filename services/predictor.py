@@ -348,7 +348,9 @@ def monitor_data(die):
     
     last_params = df_raw.set_index("parameter_name")["value"].to_dict()
     # print(last_params)
-        
+
+    ranges_df = df_raw.set_index("parameter_name")[["recomended_baseline", "recomended_lower_tolerance",  "recomended_upper_tolerance"]]
+    set_ranges = ranges_df.fillna(0).to_dict(orient="index")
     
     last_params["part_id"] = part_id
     timestamp = df_raw["created_at"].iloc[0]      
@@ -356,8 +358,9 @@ def monitor_data(die):
     formatted = timestamp.tz_convert(ist).strftime("%Y-%m-%dT%H:%M:%S")
        
     last_params["timestamp"] = formatted
+   
     
-    return last_params
+    return last_params, set_ranges
 
 def latest_model_path(die, defect):
     tag = defect.replace(" ", "_")
