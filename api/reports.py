@@ -52,7 +52,7 @@ def get_report_preview(
 ):
     """
     Get paginated/structured report preview data (JSON) for tabular UI viewing.
-    Contains both 'Prescribed Parameter - Bellurbi' and 'Bellurbis' datasets.
+    Contains 'Prescription history', 'Predicted vs Actual', and 'Prediction Accuracy' datasets.
     """
     c = _clean_str(client, "All")
     m = _clean_str(machine, "All")
@@ -89,9 +89,10 @@ def export_report_excel(
     end_date: Optional[str] = Query(None, description="Custom period end date (YYYY-MM-DD)"),
 ):
     """
-    Generate and stream a 2-sheet Excel spreadsheet (.xlsx):
+    Generate and stream a 3-sheet Excel spreadsheet (.xlsx):
       - Sheet 1: Prescription history
       - Sheet 2: Predicted vs Actual
+      - Sheet 3: Prediction Accuracy
     """
     c = _clean_str(client, "All")
     m = _clean_str(machine, "All")
