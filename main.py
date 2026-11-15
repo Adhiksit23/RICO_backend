@@ -17,6 +17,10 @@ from api.calibration_api import router as calibration_router
 from api.iot import router as iot_router
 from api.reports import router as reports_router
 from services.iot_scheduler import start_iot_scheduler_on_boot, shutdown_iot_scheduler
+from services.predict_monitor_scheduler import (
+    start_predict_monitor_scheduler_on_boot,
+    shutdown_predict_monitor_scheduler,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,10 +32,12 @@ logger = logging.getLogger("rico")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     start_iot_scheduler_on_boot()
+    start_predict_monitor_scheduler_on_boot()
     try:
         yield
     finally:
         shutdown_iot_scheduler()
+        shutdown_predict_monitor_scheduler()
 
 
 app = FastAPI(

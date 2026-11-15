@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, date, timedelta, timezone
+from typing import Optional
 from urllib.parse import urlencode
 
 import psycopg2
@@ -130,8 +131,12 @@ def get_auth_token_shot() -> str:
     return token
 
 
-def get_iot_data_shot(token: str, data_path: str) -> None:
-    """GET latest PLC readings and persist the newest applicable shot."""
+def get_iot_data_shot(token: str, data_path: str) -> Optional[tuple[str, str]]:
+    """GET latest PLC readings and persist the newest applicable shot.
+
+    Returns ``(id_die, id_part)`` for the saved part, or ``None`` when nothing
+    was saved (no rows, unknown die, or non-target machine).
+    """
     url = f"{IOT_DATA_BASE_URL}{data_path}"
     logger.info("[shot_update] Fetching %s", url)
     headers = {"Authorization": f"Bearer {token}"}
@@ -143,7 +148,7 @@ def get_iot_data_shot(token: str, data_path: str) -> None:
     
     if not rows:
         logger.info("[shot_update] No shot rows returned")
-        return
+        return None
     row = rows[0]
     # print(rows[0].get("shot_number") == 8754)
     # print(type(rows[0].get("shot_number")))
@@ -151,7 +156,7 @@ def get_iot_data_shot(token: str, data_path: str) -> None:
     # if row is None:
     #     logger.info("[shot_update] No row with shot_number=%s", target_shot)
     #     return
-    process_data_shot(row)
+    return process_data_shot(row)
 
 
 def date_processing(raw_date: str) -> datetime:
@@ -160,11 +165,12 @@ def date_processing(raw_date: str) -> datetime:
     return naive.replace(tzinfo=ist)
 
 
-def process_data_shot(data: dict) -> None:
+def process_data_shot(data: dict) -> Optional[tuple[str, str]]:
+    """Upsert the shot part; return ``(id_die, id_part)`` when a part was saved."""
     id_die = data.get("die_name")
     logger.info("[shot_update] die_name=%s", id_die)
     if id_die not in DIE_LIST:
-        return
+        return None
 
     part_id = (
         data["shot_month"]
@@ -179,7 +185,7 @@ def process_data_shot(data: dict) -> None:
     machine_id = data["machine_name"]
     if machine_id[-1:] != "2":
         logger.info("[shot_update] Skipping machine %s (not UBE 850T-02)", machine_id)
-        return
+        return None
 
     conn = psycopg2.connect(**DB_CONFIG)
     try:
@@ -249,6 +255,7 @@ def process_data_shot(data: dict) -> None:
 
         conn.commit()
         logger.info("[shot_update] Saved part %s", part_id)
+        return id_die, part_id
     except Exception:
         conn.rollback()
         raise

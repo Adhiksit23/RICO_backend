@@ -76,3 +76,12 @@ IOT_SYNC_INTERVAL_SECONDS = max(30, _env_int("IOT_SYNC_INTERVAL_SECONDS", 60))
 # Also run legacy /reports historical sync from predictor.py
 IOT_SYNC_INCLUDE_LEGACY = _env_bool("IOT_SYNC_INCLUDE_LEGACY", False)
 IOT_LEGACY_SYNC_INTERVAL_SECONDS = max(30, _env_int("IOT_LEGACY_SYNC_INTERVAL_SECONDS", 300))
+
+# ─── Prediction + monitor scheduler ──────────────────────────────────
+# Optional interval job that calls predictions(die) and monitor_data(die)
+# for each die. Shot sync also queues a per-part run on save; set this to
+# false to avoid predicting every part twice.
+PREDICT_MONITOR_ENABLED = _env_bool("PREDICT_MONITOR_ENABLED", True)
+PREDICT_MONITOR_INTERVAL_SECONDS = max(
+    30, _env_int("PREDICT_MONITOR_INTERVAL_SECONDS", 60)
+)

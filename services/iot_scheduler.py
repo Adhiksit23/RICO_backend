@@ -128,6 +128,7 @@ def run_iot_sync(trigger: str = "scheduler") -> dict[str, Any]:
         "status": "ok",
         "trigger": trigger,
         "shot_sync": None,
+        "predict_monitor": None,
         "legacy_sync": None,
         "finished_at": None,
     }
@@ -140,9 +141,16 @@ def run_iot_sync(trigger: str = "scheduler") -> dict[str, Any]:
 
         data_path = update_date_path_shot()
         token = get_auth_token_shot()
-        get_iot_data_shot(token, data_path)
+        saved = get_iot_data_shot(token, data_path)
         result["shot_sync"] = "ok"
         logger.info("[iot-sync] Shot sync completed (%s)", trigger)
+
+        if saved:
+            die, part_id = saved
+            _queue_predict_monitor(die, part_id, trigger)
+            result["predict_monitor"] = "queued"
+        else:
+            result["predict_monitor"] = "not_queued"
 
         if IOT_SYNC_INCLUDE_LEGACY:
             now = datetime.now(timezone.utc)
@@ -190,10 +198,36 @@ def run_iot_sync(trigger: str = "scheduler") -> dict[str, Any]:
             "trigger": trigger,
             "error": result.get("error"),
             "shot_sync": result.get("shot_sync"),
+            "predict_monitor": result.get("predict_monitor"),
             "legacy_sync": result.get("legacy_sync"),
             "finished_at": result["finished_at"],
         }
         _sync_lock.release()
+
+
+def _queue_predict_monitor(die: str, part_id: str, trigger: str) -> None:
+    """
+    Queue a one-off predict+monitor run for the part just saved by shot sync.
+
+    Uses its own APScheduler job so model inference does not lengthen the sync
+    cycle. Independent of PREDICT_MONITOR_ENABLED (that flag controls the
+    interval timer only).
+    """
+    try:
+        from services.predict_monitor_scheduler import run_predict_monitor_for_die
+
+        scheduler = _ensure_scheduler_instance()
+        scheduler.add_job(
+            run_predict_monitor_for_die,
+            id=f"rico_predict_monitor_{part_id}",
+            replace_existing=True,
+            kwargs={"die": die, "part_id": part_id, "trigger": f"shot_sync:{trigger}"},
+        )
+        logger.info("[iot-sync] Queued predict+monitor for die=%s part=%s", die, part_id)
+    except Exception:
+        logger.exception(
+            "[iot-sync] Failed to queue predict+monitor for die=%s part=%s", die, part_id
+        )
 
 
 def _ensure_scheduler_instance() -> BackgroundScheduler:

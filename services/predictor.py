@@ -322,7 +322,7 @@ def get_latest_calibration(machine: str = None, die: str = None):
 def monitor_data(die):
     #Connect to database
     conn = psycopg2.connect(**DB_CONFIG)
-    print("In monitor data, DB_Config used: ", DB_CONFIG)
+    # print("In monitor data, DB_Config used: ", DB_CONFIG)
     query = """
         SELECT c.*
         FROM operating_parameter c
