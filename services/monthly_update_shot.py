@@ -282,6 +282,113 @@ def date_processing(date_string):
 
 
 # ============================================================
+# PART IDENTITY (numeric shot key)
+# ============================================================
+
+PRODUCTION_DAY_OFFSET = timedelta(hours=6)
+
+
+def extract_shot_number(part_id):
+    """
+    Return the numeric shot suffix of id_part, or None.
+
+    id_part is <MMDDHHMM><machine><shot>; the shot starts at char 10.
+    """
+    if not part_id or len(part_id) < 10:
+        return None
+
+    suffix = part_id[9:]
+
+    if not suffix.isdigit():
+        return None
+
+    return int(suffix)
+
+
+def derive_production_date(shot, date_ist):
+    """
+    Production date. shot.date is authoritative.
+
+    Fallback: the production day starts at 06:00, and the API timestamp's
+    calendar date is +1 for 00:00-05:59, so subtract six hours.
+    """
+    raw = shot.get("date")
+
+    if raw:
+        try:
+            return date.fromisoformat(str(raw)[:10])
+        except ValueError:
+            pass
+
+    return (date_ist - PRODUCTION_DAY_OFFSET).date()
+
+
+def find_existing_part_id(cur, id_die, shot_number, production_date):
+    """
+    Resolve an existing part by (id_die, shot_number, production_date).
+
+    Falls back to deriving the key from id_part/manufactored_on for rows
+    written before the key columns existed. Returns id_part or None.
+    """
+    if shot_number is None or production_date is None:
+        return None
+
+    cur.execute(
+        """
+        SELECT id_part
+        FROM part
+        WHERE id_die = %s
+          AND (
+                (shot_number = %s AND production_date = %s)
+             OR (substring(id_part FROM 10) ~ '^[0-9]+$'
+                 AND substring(id_part FROM 10)::bigint = %s
+                 AND ((manufactored_on AT TIME ZONE 'Asia/Kolkata')
+                      - interval '6 hours')::date = %s)
+          )
+        LIMIT 1
+        """,
+        (
+            id_die,
+            shot_number,
+            production_date,
+            shot_number,
+            production_date,
+        ),
+    )
+
+    found = cur.fetchone()
+
+    return found[0] if found else None
+
+
+def ensure_identity_columns(cur):
+    """
+    Fail fast when migrations 002 and 003 are not applied.
+    """
+    required = {"shot_number", "production_date", "status"}
+
+    cur.execute(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'part'
+          AND column_name IN ('shot_number', 'production_date', 'status')
+        """
+    )
+
+    found = {row[0] for row in cur.fetchall()}
+    missing = required - found
+
+    if missing:
+        raise RuntimeError(
+            f"part is missing columns {sorted(missing)}; "
+            "apply migrations/002_part_shot_identity.sql and "
+            "003_part_status.sql first"
+        )
+
+
+# ============================================================
 # DATABASE STORAGE
 # ============================================================
 
@@ -291,6 +398,7 @@ def store_defect(
     date_ist,
     id_client,
     id_machine,
+    part_id=None,
 ):
     """
     Insert/update defect information for a part.
@@ -304,7 +412,7 @@ def store_defect(
     sub_zone = rejection.get("subZone")
     view = rejection.get("view")
 
-    part_id = row["part"]["id"]
+    part_id = part_id if part_id is not None else row["part"]["id"]
     id_die = row["part"]["die"]
 
     cur.execute(
@@ -423,6 +531,30 @@ def process_data(
     customer_qr = part.get("customerQr") or {}
     print(f"Customer QR for {part_id} is {customer_qr}")
 
+    part_status = part.get("status") or "in_progress"
+
+    try:
+        shot_number = int(shot.get("number"))
+    except (TypeError, ValueError):
+        shot_number = extract_shot_number(part_id)
+
+    production_date = derive_production_date(shot, date_ist)
+
+    existing_part_id = find_existing_part_id(
+        cur,
+        id_die,
+        shot_number,
+        production_date,
+    )
+
+    if existing_part_id and existing_part_id != part_id:
+        print(
+            f"[REUSE] Shot {shot_number} on {production_date} "
+            f"already stored as {existing_part_id}; "
+            f"writing under that id instead of {part_id}"
+        )
+        part_id = existing_part_id
+
     # --------------------------------------------------------
     # PART
     # --------------------------------------------------------
@@ -436,10 +568,13 @@ def process_data(
             id_machine,
             manufactored_on,
             created_at,
-            customer_qr
+            customer_qr,
+            shot_number,
+            production_date,
+            status
         )
         VALUES (
-            %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
 
         ON CONFLICT (id_part)
@@ -450,7 +585,10 @@ def process_data(
             id_machine = EXCLUDED.id_machine,
             manufactored_on = EXCLUDED.manufactored_on,
             updated_at = EXCLUDED.updated_at,
-            customer_qr = COALESCE(NULLIF(EXCLUDED.customer_qr, ''), rico.part.customer_qr)
+            customer_qr = COALESCE(NULLIF(EXCLUDED.customer_qr, ''), rico.part.customer_qr),
+            shot_number = EXCLUDED.shot_number,
+            production_date = EXCLUDED.production_date,
+            status = EXCLUDED.status
 
 
         """,
@@ -462,6 +600,9 @@ def process_data(
             date_ist,
             datetime.now(),
             customer_qr,
+            shot_number,
+            production_date,
+            part_status,
         )
     )
 
@@ -545,6 +686,7 @@ def process_data(
             date_ist,
             id_client,
             id_machine,
+            part_id=part_id,
         )
 
     return True
@@ -940,6 +1082,8 @@ def update_month(
 
     try:
 
+        ensure_identity_columns(cur)
+
         # ====================================================
         # DAY LOOP
         # ====================================================
@@ -1186,6 +1330,8 @@ def update_date_range(
 
     try:
 
+        ensure_identity_columns(cur)
+
         # ----------------------------------------------------
         # Get client ID once
         # ----------------------------------------------------
@@ -1317,16 +1463,43 @@ def update_date_range(
 # ============================================================
 
 if __name__ == "__main__":
+    args = sys.argv[1:]
 
-    # Example:
-    # Backfill all of August 2026
-    month_arg = int(sys.argv[1])
-    year_arg = int( sys.argv[2])
-    update_month(
-        year=year_arg,
-        month=month_arg,
-    )
-    # update_date_range(
-    #     start_date="2026-09-01",
-    #     end_date="2026-09-10",
-    # )
+    if args and args[0].startswith("--"):
+        start = None
+        end = None
+        index = 0
+
+        while index < len(args):
+            flag = args[index]
+
+            if flag == "--from":
+                start = args[index + 1]
+                index += 2
+            elif flag == "--to":
+                end = args[index + 1]
+                index += 2
+            elif flag == "--date":
+                start = end = args[index + 1]
+                index += 2
+            else:
+                raise SystemExit(f"unknown argument: {flag}")
+
+        if start is None:
+            raise SystemExit("--from or --date is required")
+
+        update_date_range(start, end or start)
+
+    else:
+        if len(args) != 2:
+            raise SystemExit(
+                "usage:\n"
+                "  python -m services.monthly_update_shot <month> <year>\n"
+                "  python -m services.monthly_update_shot --from YYYY-MM-DD --to YYYY-MM-DD\n"
+                "  python -m services.monthly_update_shot --date YYYY-MM-DD"
+            )
+
+        update_month(
+            year=int(args[1]),
+            month=int(args[0]),
+        )
