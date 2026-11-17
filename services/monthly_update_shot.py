@@ -1468,6 +1468,7 @@ if __name__ == "__main__":
     if args and args[0].startswith("--"):
         start = None
         end = None
+        do_predict = False
         index = 0
 
         while index < len(args):
@@ -1482,6 +1483,9 @@ if __name__ == "__main__":
             elif flag == "--date":
                 start = end = args[index + 1]
                 index += 2
+            elif flag == "--predict":
+                do_predict = True
+                index += 1
             else:
                 raise SystemExit(f"unknown argument: {flag}")
 
@@ -1490,13 +1494,19 @@ if __name__ == "__main__":
 
         update_date_range(start, end or start)
 
+        if do_predict:
+            from services.monthly_predict import predict_date_range
+
+            predict_date_range(start, end or start)
+
     else:
         if len(args) != 2:
             raise SystemExit(
                 "usage:\n"
                 "  python -m services.monthly_update_shot <month> <year>\n"
                 "  python -m services.monthly_update_shot --from YYYY-MM-DD --to YYYY-MM-DD\n"
-                "  python -m services.monthly_update_shot --date YYYY-MM-DD"
+                "  python -m services.monthly_update_shot --date YYYY-MM-DD\n"
+                "  python -m services.monthly_update_shot --from YYYY-MM-DD --to YYYY-MM-DD --predict"
             )
 
         update_month(
