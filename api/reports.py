@@ -87,6 +87,7 @@ def export_report_excel(
     period: str = Query("all", description="Period filter: all, today, last_7_days, last_month, ytd, custom"),
     start_date: Optional[str] = Query(None, description="Custom period start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="Custom period end date (YYYY-MM-DD)"),
+    limit: Optional[int] = Query(None, ge=1, description="Max parts to export (default: all matching rows)"),
 ):
     """
     Generate and stream a 3-sheet Excel spreadsheet (.xlsx):
@@ -109,6 +110,7 @@ def export_report_excel(
             period=p,
             start_date=s,
             end_date=e,
+            limit=limit,
         )
 
         date_tag = datetime.now().strftime("%Y%m%d_%H%M%S")

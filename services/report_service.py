@@ -294,7 +294,7 @@ def fetch_part_defect_comparisons(
     period: str = "all",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    limit: int = 100,
+    limit: Optional[int] = 100,
 ) -> List[PartDefectComparisonRow]:
     """
     Fetch parts with their predicted defect probabilities and actual recorded defects.
@@ -338,6 +338,7 @@ def fetch_part_defect_comparisons(
                 params.extend([f"{start_date} 00:00:00", f"{end_date} 23:59:59"])
 
             where_str = f"WHERE {' AND '.join(conditions)}"
+            limit_str = f"LIMIT {int(limit)}" if limit is not None else ""
 
             query = f"""
                 SELECT 
@@ -352,7 +353,7 @@ def fetch_part_defect_comparisons(
                 LEFT JOIN rico.client c ON p.id_client = c.id_client
                 {where_str}
                 ORDER BY p.manufactored_on DESC
-                LIMIT {limit};
+                {limit_str};
             """
             cur.execute(query, tuple(params))
             parts = cur.fetchall()
@@ -645,6 +646,7 @@ def generate_report_excel_workbook(
     period: str = "all",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    limit: Optional[int] = None,
 ) -> io.BytesIO:
     """
     Generate the Excel workbook with EXACTLY the 3 requested sheets:
@@ -661,6 +663,7 @@ def generate_report_excel_workbook(
         period=period,
         start_date=start_date,
         end_date=end_date,
+        limit=limit,
     )
 
     wb = openpyxl.Workbook()
