@@ -143,16 +143,38 @@ def build_history_path(design_date: date, page: int) -> str:
 def fetch_page(token: str, path: str):
     url = f"{IOT_DATA_BASE_URL}{path}"
     headers = {"Authorization": f"Bearer {token}"}
+
+    print(f"\nGET {url}")
+
     resp = requests.get(url, headers=headers, timeout=IOT_DATA_TIMEOUT)
 
+    print(f"Status code: {resp.status_code}")
+    print(f"Content-Type: {resp.headers.get('Content-Type')}")
+    print(f"API request time: {resp.elapsed.total_seconds():.2f}s")
+
     if resp.status_code == 401:
+        print("[AUTH] Token expired or unauthorized.")
+        print("[AUTH] Getting a new token...")
+
         token = get_auth_token()
         headers = {"Authorization": f"Bearer {token}"}
+
+        print("[AUTH] Retrying request with new token...")
+
         resp = requests.get(url, headers=headers, timeout=IOT_DATA_TIMEOUT)
+
+        print(f"Retry status code: {resp.status_code}")
 
     resp.raise_for_status()
     body = resp.json()
-    return body.get("data") or [], body.get("pagination") or {}, token
+
+    rows = body.get("data") or []
+    pagination = body.get("pagination") or {}
+
+    print("Pagination section of data:", pagination)
+    print(f"Number of records is {len(rows)}")
+
+    return rows, pagination, token
 
 
 def parse_api_time(raw: str) -> datetime:
@@ -204,25 +226,47 @@ def find_existing(cur, id_die: str, shot_number: int, production_date: date):
 def store_shot(cur, row: dict, design_date: date, id_client, id_machine) -> str:
     id_die = row.get("die_name")
     if id_die not in DIE_LIST:
+        print(f"[SKIP] Die {id_die} not in DIE_LIST")
         return "skip_die"
 
     if (row.get("machine_name") or "")[-1:] != TARGET_MACHINE_SUFFIX:
+        print(
+            f"[SKIP] Machine {row.get('machine_name')} does not end "
+            f"with target suffix {TARGET_MACHINE_SUFFIX}"
+        )
         return "skip_machine"
 
     if row.get("shot_number") is None or not row.get("recorded_at"):
+        print(
+            f"[SKIP] Incomplete row: shot={row.get('shot_number')} "
+            f"recorded_at={row.get('recorded_at')}"
+        )
         return "skip_incomplete"
 
     try:
         shot_number = int(row["shot_number"])
         recorded = parse_api_time(row["recorded_at"])
     except (TypeError, ValueError):
+        print(
+            f"[SKIP] Invalid shot/recorded_at: shot={row.get('shot_number')} "
+            f"recorded_at={row.get('recorded_at')}"
+        )
         return "skip_invalid"
 
     production_date = resolve_production_date(row, recorded)
     if production_date != design_date:
+        print(
+            f"[SKIP] Shot {shot_number} production_date={production_date} "
+            f"!= design_date={design_date}"
+        )
         return "skip_other_date"
 
-    if find_existing(cur, id_die, shot_number, production_date):
+    existing_part_id = find_existing(cur, id_die, shot_number, production_date)
+    if existing_part_id:
+        print(
+            f"[EXISTS] Shot {shot_number} on {production_date} "
+            f"already stored as {existing_part_id}"
+        )
         return "exists"
 
     part_id = build_part_id(row, recorded)
@@ -250,7 +294,13 @@ def store_shot(cur, row: dict, design_date: date, id_client, id_machine) -> str:
     )
 
     if cur.rowcount == 0:
+        print(
+            f"[EXISTS] Shot {shot_number} part={part_id} "
+            f"insert skipped (id_part conflict)"
+        )
         return "exists"
+
+    param_count = 0
 
     for param in PARAM_LIST:
         value = row.get(param)
@@ -259,6 +309,7 @@ def store_shot(cur, row: dict, design_date: date, id_client, id_machine) -> str:
 
         uom = names_UOM.get(param)
         if uom is None:
+            print(f"[WARNING] No UOM mapping for {param}")
             continue
 
         cur.execute(
@@ -287,11 +338,21 @@ def store_shot(cur, row: dict, design_date: date, id_client, id_machine) -> str:
                 datetime.now(IST),
             ),
         )
+        param_count += 1
+
+    print(
+        f"[INSERT] Shot {shot_number} part={part_id} "
+        f"production_date={production_date} params={param_count}"
+    )
 
     return "inserted"
 
 
 def process_day(token, design_date: date, conn, cur, id_client, id_machine):
+    print("\n" + "=" * 80)
+    print(f"PROCESSING DATE: {design_date}")
+    print("=" * 80)
+
     page = 1
     pending = 0
     stats = {"received": 0, "inserted": 0, "exists": 0, "skipped": 0, "failed": 0}
@@ -299,11 +360,27 @@ def process_day(token, design_date: date, conn, cur, id_client, id_machine):
     while True:
         rows, pagination, token = fetch_page(token, build_history_path(design_date, page))
         if not rows:
+            print(f"No records returned on page {page}.")
             break
 
         stats["received"] += len(rows)
 
-        for row in rows:
+        print(
+            f"Date: {design_date} | "
+            f"Page: {page} | "
+            f"Records: {len(rows)}"
+        )
+
+        for row_number, row in enumerate(rows, start=1):
+            print(
+                f"[{design_date}] "
+                f"Page={page} "
+                f"Row={row_number}/{len(rows)} "
+                f"Shot={row.get('shot_number')} "
+                f"Die={row.get('die_name')} "
+                f"Machine={row.get('machine_name')}"
+            )
+
             cur.execute("SAVEPOINT backfill_row")
             try:
                 outcome = store_shot(cur, row, design_date, id_client, id_machine)
@@ -323,6 +400,12 @@ def process_day(token, design_date: date, conn, cur, id_client, id_machine):
                 pending += 1
                 if pending >= COMMIT_EVERY:
                     conn.commit()
+                    print("\n" + "-" * 60)
+                    print(f"[BATCH COMMIT] {COMMIT_EVERY} records committed")
+                    print(f"Date: {design_date}")
+                    print(f"Page: {page}")
+                    print(f"Total inserted so far: {stats['inserted']}")
+                    print("-" * 60 + "\n")
                     pending = 0
             elif outcome == "exists":
                 stats["exists"] += 1
@@ -332,16 +415,32 @@ def process_day(token, design_date: date, conn, cur, id_client, id_machine):
         total_pages = pagination.get("totalPages") or pagination.get("total_pages")
         try:
             if total_pages and page >= int(total_pages):
+                print(f"Final page reached: {page}")
                 break
         except (TypeError, ValueError):
             pass
 
         if len(rows) < PAGE_SIZE:
+            print(f"Final page reached: {page}")
             break
         page += 1
 
     if pending:
         conn.commit()
+        print(
+            f"\n[FINAL BATCH COMMIT] {pending} remaining records "
+            f"committed for {design_date}"
+        )
+
+    print("-" * 80)
+    print(
+        f"Finished {design_date}: "
+        f"{stats['received']} received, "
+        f"{stats['inserted']} inserted, "
+        f"{stats['exists']} existed, "
+        f"{stats['skipped']} skipped, "
+        f"{stats['failed']} failed"
+    )
 
     return stats, token
 
@@ -352,9 +451,32 @@ def update_date_range(start_date: str, end_date: str) -> dict:
     if first > last:
         raise ValueError("start_date cannot be after end_date")
 
+    print("\n" + "=" * 80)
+    print("PLC DATE RANGE BACKFILL")
+    print("=" * 80)
+    print(f"From: {first}")
+    print(f"To:   {last}")
+
+    # --------------------------------------------------------
+    # AUTHENTICATE ONCE
+    # --------------------------------------------------------
+
+    print("\nAuthenticating with PLC API...")
+
     token = get_auth_token()
+
+    print("Authentication successful.")
+
+    # --------------------------------------------------------
+    # DATABASE CONNECTION OPENED ONCE
+    # --------------------------------------------------------
+
+    print("\nConnecting to PostgreSQL...")
+
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
+
+    print("Database connection successful.")
 
     totals = {"received": 0, "inserted": 0, "exists": 0, "skipped": 0, "failed": 0}
     failed_days = 0
@@ -375,6 +497,11 @@ def update_date_range(start_date: str, end_date: str) -> dict:
             raise RuntimeError(f"No machine found for client {id_client}")
         id_machine = machine_row[0]
 
+        print(f"Client ID: {id_client}")
+        print(f"Machine ID: {id_machine}")
+
+        print("\nChecking required schema columns...")
+
         cur.execute(
             """
             SELECT count(*) FROM information_schema.columns
@@ -388,6 +515,8 @@ def update_date_range(start_date: str, end_date: str) -> dict:
                 "003_part_status.sql before this script"
             )
 
+        print("Schema check passed.")
+
         current = first
         while current <= last:
             try:
@@ -397,6 +526,7 @@ def update_date_range(start_date: str, end_date: str) -> dict:
                 conn.commit()
                 for key in totals:
                     totals[key] += stats[key]
+                print(f"\nCOMMITTED {current}")
                 print(
                     f"{current}: inserted={stats['inserted']} "
                     f"exists={stats['exists']} skipped={stats['skipped']} "
@@ -411,12 +541,21 @@ def update_date_range(start_date: str, end_date: str) -> dict:
         cur.close()
         conn.close()
 
+        print("\nDatabase connection closed.")
+
     totals["failed_days"] = failed_days
-    print(
-        f"TOTAL inserted={totals['inserted']} exists={totals['exists']} "
-        f"skipped={totals['skipped']} failed={totals['failed']} "
-        f"received={totals['received']} failed_days={failed_days}"
-    )
+
+    print("\n" + "=" * 80)
+    print("PLC BACKFILL COMPLETE")
+    print("=" * 80)
+    print(f"Records received: {totals['received']}")
+    print(f"Parts inserted:   {totals['inserted']}")
+    print(f"Parts existed:    {totals['exists']}")
+    print(f"Rows skipped:     {totals['skipped']}")
+    print(f"Rows failed:      {totals['failed']}")
+    print(f"Failed days:      {failed_days}")
+    print("=" * 80)
+
     return totals
 
 
