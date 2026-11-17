@@ -23,6 +23,7 @@ from services.config import (
     IOT_SYNC_INCLUDE_LEGACY,
     IOT_SYNC_INTERVAL_SECONDS,
     IOT_LEGACY_SYNC_INTERVAL_SECONDS,
+    PREDICT_MONITOR_ENABLED,
 )
 
 logger = logging.getLogger(__name__)
@@ -145,7 +146,7 @@ def run_iot_sync(trigger: str = "scheduler") -> dict[str, Any]:
         result["shot_sync"] = "ok"
         logger.info("[iot-sync] Shot sync completed (%s)", trigger)
 
-        if saved:
+        if saved and PREDICT_MONITOR_ENABLED: 
             die, part_id = saved
             _queue_predict_monitor(die, part_id, trigger)
             result["predict_monitor"] = "queued"
