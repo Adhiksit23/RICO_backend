@@ -11,6 +11,10 @@ Rules:
     or after the model date; parts before that use the older global models.
   * a part missing any parameter required by its models is skipped entirely.
   * predictions are overwritten (upsert on (id_part, defect_type)).
+  * each prediction row also stores the monitor verdict: the part's operating
+    parameters are compared with the calibration tolerances of the same
+    as-of-shot calibration used for the features (UI monitor page parameters
+    plus cycle_time). FAIL when more than 4 parameters are out of range.
 
 Usage:
     python -m services.monthly_predict --date 2026-11-03
@@ -39,6 +43,37 @@ MODEL_ROOT = Path(__file__).resolve().parent.parent / "models"
 EXTRA_PARAM_MAPPING = {
     "DIE-CLOSE CORE IN TIME": "die_close_core_in_time",
 }
+
+# Parameters used for the monitor verdict in the backfill: the UI monitor page
+# set (RICO_frontend/src/app/monitor/page.tsx parameterMap) plus cycle_time.
+MONITOR_PARAMS = [
+    "curing_time",
+    "spray_time",
+    "cycle_time",
+    "v1_speed",
+    "v2_speed",
+    "v3_speed",
+    "v4_speed",
+    "accel_point",
+    "deaccel_point",
+    "intensification_time",
+    "metal_pressure",
+    "biscuit_thickness",
+    "clamp_force_pct",
+    "clamp_tonnage",
+    "furnace_metal_temp",
+    "pouring_time",
+    "die_open_core_out_time",
+    "die_close_core_in_time",
+    "ejector_time",
+    "extract_time",
+    "intensification_acc_pressure",
+    "shot_acc_pressure",
+    "shot_fwd_time",
+]
+
+# UI monitor page: REJECT only when out-of-range count is greater than 4.
+MONITOR_FAIL_THRESHOLD = 4
 
 _MODEL_DATE_RE = re.compile(r"_(\d{8})_voting\.pkl$")
 _MODEL_CACHE: dict[str, dict] = {}
@@ -168,6 +203,48 @@ def _load_calibration(cur, calibration_id: int) -> dict:
     return values
 
 
+def _load_part_params(cur, part_ids: list[str]) -> dict[str, dict]:
+    if not part_ids:
+        return {}
+    cur.execute(
+        """
+        SELECT id_part, parameter_name, value
+        FROM rico.operating_parameter
+        WHERE id_part = ANY(%s)
+        """,
+        (part_ids,),
+    )
+    params: dict[str, dict] = {}
+    for part_id, name, value in cur.fetchall():
+        params.setdefault(part_id, {})[_canonical_param(name)] = value
+    return params
+
+
+def _monitor_counts(part_values: dict, calibration: dict) -> tuple[str, int, int, int]:
+    """Compare part values with calibration tolerances (see MONITOR_PARAMS)."""
+    out_of_range = 0
+    compared = 0
+    for param in MONITOR_PARAMS:
+        raw_value = part_values.get(param)
+        bounds = calibration.get(param)
+        if raw_value is None or not bounds:
+            continue
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            continue
+        _baseline, lower, upper = bounds
+        if lower is None or upper is None:
+            continue
+
+        compared += 1
+        if not (lower <= value <= upper):
+            out_of_range += 1
+
+    verdict = "FAIL" if out_of_range > MONITOR_FAIL_THRESHOLD else "PASS"
+    return verdict, out_of_range, compared, len(MONITOR_PARAMS)
+
+
 def _predict_day(cur, conn, die: str, day: date, totals: dict) -> None:
     calibration_id, used_earliest_fallback = _calibration_for(cur, die, day)
     if calibration_id is None:
@@ -220,20 +297,11 @@ def _predict_day(cur, conn, die: str, day: date, totals: dict) -> None:
         )
 
     part_ids = [row[0] for row in parts]
-    cur.execute(
-        """
-        SELECT id_part, parameter_name, value
-        FROM rico.operating_parameter
-        WHERE id_part = ANY(%s)
-        """,
-        (part_ids,),
-    )
-    params: dict[str, dict] = {}
-    for part_id, name, value in cur.fetchall():
-        params.setdefault(part_id, {})[name] = value
+    params = _load_part_params(cur, part_ids)
 
     kept = []
     canonical_rows = []
+    monitor_rows = []
     for row in parts:
         part_values = params.get(row[0], {})
         canonical = {}
@@ -259,9 +327,14 @@ def _predict_day(cur, conn, die: str, day: date, totals: dict) -> None:
         kept.append(row)
         canonical_rows.append(canonical)
 
+        # Monitor-page comparison: parameter value vs calibration tolerance.
+        monitor_rows.append(_monitor_counts(part_values, calibration))
+
     skipped_missing = len(parts) - len(kept)
     totals["parts"] += len(parts)
     totals["skipped_missing"] += skipped_missing
+    totals["pass"] += sum(1 for item in monitor_rows if item[0] == "PASS")
+    totals["fail"] += sum(1 for item in monitor_rows if item[0] == "FAIL")
 
     if not kept:
         print(
@@ -290,6 +363,7 @@ def _predict_day(cur, conn, die: str, day: date, totals: dict) -> None:
 
         for i, row in enumerate(kept):
             part_id, id_die, id_machine, id_client, _pdate, manufactored_on = row
+            verdict, out_of_range, compared, total = monitor_rows[i]
             output_rows.append(
                 (
                     part_id,
@@ -299,6 +373,10 @@ def _predict_day(cur, conn, die: str, day: date, totals: dict) -> None:
                     manufactored_on,
                     defect,
                     float(probabilities[i]),
+                    verdict,
+                    out_of_range,
+                    compared,
+                    total,
                     now,
                     today,
                 )
@@ -309,7 +387,9 @@ def _predict_day(cur, conn, die: str, day: date, totals: dict) -> None:
         """
         INSERT INTO rico.part_quality_prediction (
             id_part, id_die, id_client, id_machine, manufactored_on,
-            defect_type, defect_probability, created_at, updated_at
+            defect_type, defect_probability, monitor_verdict,
+            params_out_of_range, params_compared, params_total,
+            created_at, updated_at
         )
         VALUES %s
         ON CONFLICT (id_part, defect_type) DO UPDATE SET
@@ -318,6 +398,10 @@ def _predict_day(cur, conn, die: str, day: date, totals: dict) -> None:
             id_machine = EXCLUDED.id_machine,
             manufactored_on = EXCLUDED.manufactored_on,
             defect_probability = EXCLUDED.defect_probability,
+            monitor_verdict = EXCLUDED.monitor_verdict,
+            params_out_of_range = EXCLUDED.params_out_of_range,
+            params_compared = EXCLUDED.params_compared,
+            params_total = EXCLUDED.params_total,
             updated_at = EXCLUDED.updated_at
         """,
         output_rows,
@@ -363,6 +447,8 @@ def predict_date_range(
         "scored": 0,
         "skipped_missing": 0,
         "rows": 0,
+        "pass": 0,
+        "fail": 0,
         "days_no_calibration": 0,
         "days_earliest_calibration": 0,
         "days_no_model": 0,
@@ -387,9 +473,126 @@ def predict_date_range(
     print(f"Parts scored:          {totals['scored']}")
     print(f"Parts skipped (params):{totals['skipped_missing']}")
     print(f"Prediction rows:       {totals['rows']}")
+    print(f"Monitor PASS:          {totals['pass']}")
+    print(f"Monitor FAIL:          {totals['fail']}")
     print(f"Days without calib:    {totals['days_no_calibration']}")
     print(f"Days earliest cal:     {totals['days_earliest_calibration']}")
     print(f"Days without model:    {totals['days_no_model']}")
+    print("=" * 80)
+
+    return totals
+
+
+def _refresh_monitor_day(cur, conn, die: str, day: date, totals: dict) -> None:
+    """Rewrite the monitor columns of existing prediction rows for one day/die."""
+    calibration_id, _ = _calibration_for(cur, die, day)
+    if calibration_id is None:
+        totals["days_no_calibration"] += 1
+        return
+
+    calibration = _load_calibration(cur, calibration_id)
+
+    cur.execute(
+        """
+        SELECT p.id_part
+        FROM rico.part p
+        WHERE p.production_date = %s
+          AND p.id_die = %s
+          AND EXISTS (
+              SELECT 1
+              FROM rico.part_quality_prediction q
+              WHERE q.id_part = p.id_part
+          )
+        """,
+        (day, die),
+    )
+    part_ids = [row[0] for row in cur.fetchall()]
+    if not part_ids:
+        return
+
+    params = _load_part_params(cur, part_ids)
+    updates = []
+    for part_id in part_ids:
+        verdict, out_of_range, compared, total = _monitor_counts(
+            params.get(part_id, {}), calibration
+        )
+        updates.append((verdict, out_of_range, compared, total, part_id))
+        totals["parts"] += 1
+        totals["pass" if verdict == "PASS" else "fail"] += 1
+
+    cur.executemany(
+        """
+        UPDATE rico.part_quality_prediction
+        SET monitor_verdict = %s,
+            params_out_of_range = %s,
+            params_compared = %s,
+            params_total = %s
+        WHERE id_part = %s
+        """,
+        updates,
+    )
+    totals["rows"] += cur.rowcount
+    conn.commit()
+
+
+def update_monitor_date_range(
+    start_date: str,
+    end_date: str,
+    dies: Optional[list[str]] = None,
+) -> dict:
+    """Refresh monitor verdict columns on existing prediction rows.
+
+    Recomputes monitor_verdict / params_out_of_range / params_compared /
+    params_total for every part in the inclusive date range that already has
+    prediction rows, using the as-of-shot calibration. Defect probabilities
+    are left untouched and the models are not loaded.
+    """
+    first = date.fromisoformat(start_date)
+    last = date.fromisoformat(end_date)
+    if first > last:
+        raise ValueError("start_date cannot be after end_date")
+
+    dies = dies or DIE_LIST
+
+    print("\n" + "=" * 80)
+    print("MONITOR VERDICT REFRESH")
+    print("=" * 80)
+    print(f"From: {first}")
+    print(f"To:   {last}")
+    print(f"Dies: {', '.join(dies)}")
+
+    print("\nConnecting to PostgreSQL...")
+    conn = psycopg2.connect(**DB_CONFIG)
+    cur = conn.cursor()
+    print("Database connection successful.")
+
+    totals = {
+        "parts": 0,
+        "pass": 0,
+        "fail": 0,
+        "rows": 0,
+        "days_no_calibration": 0,
+    }
+
+    try:
+        current = first
+        while current <= last:
+            for die in dies:
+                _refresh_monitor_day(cur, conn, die, current, totals)
+            current += timedelta(days=1)
+    finally:
+        cur.close()
+        conn.close()
+        print("\nDatabase connection closed.")
+
+    print("\n" + "=" * 80)
+    print("MONITOR VERDICT REFRESH COMPLETE")
+    print("=" * 80)
+    print(f"Parts refreshed:       {totals['parts']}")
+    print(f"Prediction rows:       {totals['rows']}")
+    print(f"Monitor PASS:          {totals['pass']}")
+    print(f"Monitor FAIL:          {totals['fail']}")
+    print(f"Days without calib:    {totals['days_no_calibration']}")
     print("=" * 80)
 
     return totals

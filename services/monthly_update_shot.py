@@ -1,6 +1,7 @@
 import requests
 import psycopg2
 import sys
+import calendar
 from datetime import date, datetime, timezone, timedelta
 
 from services.config import (
@@ -1499,6 +1500,10 @@ if __name__ == "__main__":
 
             predict_date_range(start, end or start)
 
+        from services.monthly_predict import update_monitor_date_range
+
+        update_monitor_date_range(start, end or start)
+
     else:
         if len(args) != 2:
             raise SystemExit(
@@ -1512,4 +1517,14 @@ if __name__ == "__main__":
         update_month(
             year=int(args[1]),
             month=int(args[0]),
+        )
+
+        from services.monthly_predict import update_monitor_date_range
+
+        year = int(args[1])
+        month = int(args[0])
+        last_day = calendar.monthrange(year, month)[1]
+        update_monitor_date_range(
+            date(year, month, 1).isoformat(),
+            date(year, month, last_day).isoformat(),
         )

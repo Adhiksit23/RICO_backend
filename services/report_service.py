@@ -5,7 +5,7 @@ and generates multi-sheet Excel (.xlsx) workbooks matching RICO specifications.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 import io
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -158,6 +158,29 @@ REPORT_PARAMETERS: List[Tuple[str, List[str]]] = [
 
 TARGET_DEFECT_KEYS = ["Blow_Hole", "Non_filling", "Porosity", "Shrinkage", "Chipoff", "Crack"]
 
+# India Standard Time (no DST) — report timestamps and production days are IST based.
+IST = timezone(timedelta(hours=5, minutes=30), "IST")
+PRODUCTION_DAY_START_HOUR = 6
+
+
+def _to_ist(value):
+    """Convert a DB timestamp (timestamptz) to IST for display."""
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(IST)
+    return value
+
+
+def _production_day(now_ist: datetime) -> date:
+    """Production day is 06:00 -> 06:00 IST; before 06:00 it is still the previous day."""
+    return (now_ist - timedelta(hours=PRODUCTION_DAY_START_HOUR)).date()
+
+
+def _production_day_start(day: date) -> datetime:
+    return datetime(day.year, day.month, day.day, PRODUCTION_DAY_START_HOUR, tzinfo=IST)
+
+
 
 def _get_db_conn():
     try:
@@ -279,7 +302,7 @@ def fetch_prescribed_parameters(
                     machine_id=str(machine) if machine and machine != "All" else "UBE 850T-2",
                     die_id=str(d),
                     prescription_id="75",
-                    date_provided=datetime.now().strftime("%Y-%m-%d 08:30"),
+                    date_provided=datetime.now(IST).strftime("%Y-%m-%d 08:30"),
                     parameters=p_dict,
                 )
             )
@@ -318,24 +341,26 @@ def fetch_part_defect_comparisons(
                 conditions.append("c.name = %s")
                 params.append(client)
 
-            # Date Period filtering
-            now_utc = datetime.now(timezone.utc)
+            # Date Period filtering (production day = 06:00 -> 06:00 IST)
+            now_ist = datetime.now(IST)
+            anchor = _production_day(now_ist)
             if period == "today":
-                start_dt = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
                 conditions.append("p.manufactored_on >= %s")
-                params.append(start_dt)
+                params.append(_production_day_start(anchor))
             elif period == "last_7_days":
                 conditions.append("p.manufactored_on >= %s")
-                params.append(now_utc - timedelta(days=7))
+                params.append(_production_day_start(anchor - timedelta(days=7)))
             elif period == "last_month":
                 conditions.append("p.manufactored_on >= %s")
-                params.append(now_utc - timedelta(days=30))
+                params.append(_production_day_start(anchor - timedelta(days=30)))
             elif period == "ytd":
                 conditions.append("p.manufactored_on >= %s")
-                params.append(datetime(now_utc.year, 1, 1, tzinfo=timezone.utc))
+                params.append(_production_day_start(date(anchor.year, 1, 1)))
             elif period == "custom" and start_date and end_date:
-                conditions.append("p.manufactored_on >= %s AND p.manufactored_on <= %s")
-                params.extend([f"{start_date} 00:00:00", f"{end_date} 23:59:59"])
+                start_day = date.fromisoformat(str(start_date)[:10])
+                end_day = date.fromisoformat(str(end_date)[:10]) + timedelta(days=1)
+                conditions.append("p.manufactored_on >= %s AND p.manufactored_on < %s")
+                params.extend([_production_day_start(start_day), _production_day_start(end_day)])
 
             where_str = f"WHERE {' AND '.join(conditions)}"
             limit_str = f"LIMIT {int(limit)}" if limit is not None else ""
@@ -388,9 +413,10 @@ def fetch_part_defect_comparisons(
                         pred_map[pid] = {}
                     pred_map[pid][(dtype or "").lower()] = float(prob) if prob is not None else 0.0
 
-                today_str = datetime.now().strftime("%Y-%m-%d")
+                today_str = datetime.now(IST).strftime("%Y-%m-%d")
 
                 for part_id, die_id, machine_name, mfg_on, cust_qr, calib_used in parts:
+                    mfg_on = _to_ist(mfg_on)
                     mfg_date = mfg_on.strftime("%Y-%m-%d") if hasattr(mfg_on, "strftime") else str(mfg_on)[:10]
                     mfg_time = mfg_on.strftime("%H:%M:%S") if hasattr(mfg_on, "strftime") else "00:00:00"
 
@@ -462,8 +488,8 @@ def fetch_part_defect_comparisons(
 
     # Fallback sample rows if DB is empty / offline — matches real RICO reference sample
     if not records:
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        now_time = datetime.now()
+        today_str = datetime.now(IST).strftime("%Y-%m-%d")
+        now_time = datetime.now(IST)
         sample_configs = [
             ("1104135924619", False, None, None),
             ("1104135824618", True, "blow_hole", "blow_hole"),      # Confirmed GAIN

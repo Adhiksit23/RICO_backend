@@ -12,8 +12,9 @@ keyed by (id_die, shot_number, production_date). It is idempotent: rerunning
 or overlapping date ranges skips parts that already exist.
 
 Requires migrations/002_part_shot_identity.sql (shot_number, production_date).
-Quality predictions and monitor results are produced by the live schedulers
-and are not written by this backfill.
+Quality predictions are produced by the live scheduler or --predict. The monitor
+verdict columns of existing prediction rows are refreshed after each backfill
+via services.monthly_predict.update_monitor_date_range.
 
 Dedupe is by (id_die, shot_number, production_date). id_part is only a
 surrogate: the reports API stamps part.id from the shot-start minute while the
@@ -595,6 +596,10 @@ if __name__ == "__main__":
             from services.monthly_predict import predict_date_range
 
             predict_date_range(start, end or start)
+
+        from services.monthly_predict import update_monitor_date_range
+
+        update_monitor_date_range(start, end or start)
 
     else:
         if len(args) != 2:

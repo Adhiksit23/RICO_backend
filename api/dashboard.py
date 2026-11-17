@@ -44,6 +44,20 @@ TARGET_DEFECTS = [
 
 TARGET_DEFECT_FILTER_SQL = "pq.defect_type ~* 'non[- _]?filling|pre[- _]?filling|blow[- _]?hole|porosity|shrinkage|chip[- _]?off|crack'"
 
+# Production day runs 06:00 -> 06:00 IST (same convention as shot/traceability production_date).
+# Parts made 00:00-05:59 IST belong to the previous production day.
+IST_TZ_SQL = "'Asia/Kolkata'"
+PRODUCTION_DAY_ANCHOR_SQL = "((now() AT TIME ZONE 'Asia/Kolkata') - INTERVAL '6 hours')::date"
+PRODUCTION_DAY_BUCKET_SQL = "(DATE_TRUNC('{interval}', (p.manufactored_on AT TIME ZONE 'Asia/Kolkata') - INTERVAL '6 hours'))::date"
+
+
+def production_day_start_sql(date_expr: str) -> str:
+    return f"(({date_expr} + time '06:00') AT TIME ZONE {IST_TZ_SQL})"
+
+
+def production_day_end_sql(date_expr: str) -> str:
+    return f"((({date_expr} + 1) + time '06:00') AT TIME ZONE {IST_TZ_SQL})"
+
 
 def categorize_defect(raw_type: Optional[str]) -> Optional[str]:
     """
@@ -183,28 +197,38 @@ def build_filter_where_clause(
 
     if p_val == "custom" or (start_date or end_date):
         if start_date and end_date:
-            where_clauses.append("p.manufactored_on >= %s::date AND p.manufactored_on < (%s::date + INTERVAL '1 day')")
+            where_clauses.append(
+                f"p.manufactored_on >= {production_day_start_sql('%s::date')} "
+                f"AND p.manufactored_on < {production_day_end_sql('%s::date')}"
+            )
             params.extend([start_date.strip(), end_date.strip()])
             period_label = f"{start_date.strip()} to {end_date.strip()}"
         elif start_date:
-            where_clauses.append("p.manufactored_on >= %s::date")
+            where_clauses.append(f"p.manufactored_on >= {production_day_start_sql('%s::date')}")
             params.append(start_date.strip())
             period_label = f"From {start_date.strip()}"
         elif end_date:
-            where_clauses.append("p.manufactored_on < (%s::date + INTERVAL '1 day')")
+            where_clauses.append(f"p.manufactored_on < {production_day_end_sql('%s::date')}")
             params.append(end_date.strip())
             period_label = f"Until {end_date.strip()}"
     elif p_val == "today":
-        where_clauses.append("p.manufactored_on >= CURRENT_DATE")
+        where_clauses.append(f"p.manufactored_on >= {production_day_start_sql(PRODUCTION_DAY_ANCHOR_SQL)}")
         period_label = "Today"
     elif p_val in ("last_7_days", "7d"):
-        where_clauses.append("p.manufactored_on >= CURRENT_DATE - INTERVAL '7 days'")
+        where_clauses.append(
+            f"p.manufactored_on >= {production_day_start_sql(f'({PRODUCTION_DAY_ANCHOR_SQL} - 7)')}"
+        )
         period_label = "Last 7 Days"
     elif p_val in ("last_month", "30d", "last_30_days"):
-        where_clauses.append("p.manufactored_on >= CURRENT_DATE - INTERVAL '30 days'")
+        where_clauses.append(
+            f"p.manufactored_on >= {production_day_start_sql(f'({PRODUCTION_DAY_ANCHOR_SQL} - 30)')}"
+        )
         period_label = "Last Month"
     elif p_val in ("ytd", "year_to_date"):
-        where_clauses.append("p.manufactored_on >= DATE_TRUNC('year', CURRENT_DATE)")
+        where_clauses.append(
+            f"p.manufactored_on >= ((DATE_TRUNC('year', {PRODUCTION_DAY_ANCHOR_SQL}) + time '06:00') "
+            f"AT TIME ZONE {IST_TZ_SQL})"
+        )
         period_label = "Year to Date"
 
     where_sql = " AND ".join(where_clauses)
@@ -524,7 +548,7 @@ def get_longitudinal_defects(
         # 1. Total parts and defective parts per time bucket (restricted to TARGET_DEFECTS)
         bucket_sql = f"""
             SELECT 
-                DATE_TRUNC('{clean_interval}', p.manufactored_on)::date AS bucket_date,
+                {PRODUCTION_DAY_BUCKET_SQL.format(interval=clean_interval)} AS bucket_date,
                 COUNT(DISTINCT p.id_part) AS total_parts,
                 COUNT(DISTINCT pq.id_part) AS defective_parts
             FROM rico.part p
@@ -540,7 +564,7 @@ def get_longitudinal_defects(
         # 2. Defect counts per bucket and defect type (restricted to TARGET_DEFECTS)
         defect_bucket_sql = f"""
             SELECT 
-                DATE_TRUNC('{clean_interval}', p.manufactored_on)::date AS bucket_date,
+                {PRODUCTION_DAY_BUCKET_SQL.format(interval=clean_interval)} AS bucket_date,
                 pq.defect_type,
                 COUNT(*) AS defect_count
             FROM rico.part_quality pq
