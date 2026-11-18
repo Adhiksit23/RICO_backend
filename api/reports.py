@@ -49,6 +49,7 @@ def get_report_preview(
     period: str = Query("all", description="Period filter: all, today, last_7_days, last_month, ytd, custom"),
     start_date: Optional[str] = Query(None, description="Custom period start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="Custom period end date (YYYY-MM-DD)"),
+    limit: Optional[int] = Query(None, ge=1, description="Max parts to preview (default: all matching rows, no limit)"),
 ):
     """
     Get paginated/structured report preview data (JSON) for tabular UI viewing.
@@ -69,6 +70,7 @@ def get_report_preview(
             period=p,
             start_date=s,
             end_date=e,
+            limit=limit,
         )
         return data
     except Exception as exc:

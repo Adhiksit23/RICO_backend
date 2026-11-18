@@ -193,7 +193,7 @@ def _get_db_conn():
 def fetch_prescribed_parameters(
     die: Optional[str] = None,
     machine: Optional[str] = None,
-    limit: int = 50,
+    limit: Optional[int] = None,
 ) -> List[PrescribedParameterRow]:
     """
     Retrieve timestamped prescribed parameter calibrations from database.
@@ -216,6 +216,7 @@ def fetch_prescribed_parameters(
                 params.append(machine)
 
             where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            limit_clause = f"LIMIT {int(limit) * 30}" if limit is not None else ""
 
             query = f"""
                 SELECT 
@@ -232,7 +233,7 @@ def fetch_prescribed_parameters(
                 LEFT JOIN calibration_parameter cp ON dc.id_calibration = cp.id_calibration
                 {where_clause}
                 ORDER BY dc.id_calibration DESC, cp.parameter_name
-                LIMIT {limit * 30};
+                {limit_clause};
             """
             cur.execute(query, tuple(params))
             rows = cur.fetchall()
@@ -317,7 +318,7 @@ def fetch_part_defect_comparisons(
     period: str = "all",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    limit: Optional[int] = 100,
+    limit: Optional[int] = None,
 ) -> List[PartDefectComparisonRow]:
     """
     Fetch parts with their predicted defect probabilities and actual recorded defects.
@@ -636,6 +637,7 @@ def get_report_preview_data(
     period: str = "all",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    limit: Optional[int] = None,
 ) -> ReportPreviewResponse:
     """
     Get compiled JSON preview data for frontend UI viewing.
@@ -648,6 +650,7 @@ def get_report_preview_data(
         period=period,
         start_date=start_date,
         end_date=end_date,
+        limit=limit,
     )
     accuracy = compute_prediction_accuracy(defect_records)
 
