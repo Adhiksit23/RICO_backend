@@ -763,6 +763,7 @@ def generate_report_excel_workbook(
 
     fill_id_header = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid") # Dark Navy Blue
     fill_presc_header = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid") # Blue Accent
+    fill_oor_header = PatternFill(start_color="B25900", end_color="B25900", fill_type="solid") # Amber / Orange Accent
     fill_pred_header = PatternFill(start_color="7030A0", end_color="7030A0", fill_type="solid") # Purple Accent
     fill_rec_header = PatternFill(start_color="C65911", end_color="C65911", fill_type="solid") # Rust / Amber
     fill_zebra = PatternFill(start_color="F9FAFB", end_color="F9FAFB", fill_type="solid")
@@ -847,17 +848,23 @@ def generate_report_excel_workbook(
     ws2["A1"].font = font_top_header
     ws2["A1"].alignment = align_center
 
-    ws2.merge_cells("J1:P1")
-    ws2["J1"] = "Predicted (Defects)"
-    ws2["J1"].fill = fill_pred_header
+    ws2.merge_cells("J1:L1")
+    ws2["J1"] = "Parameter Health (OOR)"
+    ws2["J1"].fill = fill_oor_header
     ws2["J1"].font = font_top_header
     ws2["J1"].alignment = align_center
 
-    ws2.merge_cells("Q1:X1")
-    ws2["Q1"] = "Recorded (Defects)"
-    ws2["Q1"].fill = fill_rec_header
-    ws2["Q1"].font = font_top_header
-    ws2["Q1"].alignment = align_center
+    ws2.merge_cells("M1:S1")
+    ws2["M1"] = "Predicted (Defects)"
+    ws2["M1"].fill = fill_pred_header
+    ws2["M1"].font = font_top_header
+    ws2["M1"].alignment = align_center
+
+    ws2.merge_cells("T1:AA1")
+    ws2["T1"] = "Recorded (Defects)"
+    ws2["T1"].fill = fill_rec_header
+    ws2["T1"].font = font_top_header
+    ws2["T1"].alignment = align_center
 
     # Tier 2 Header
     headers_defect_comparison = [
@@ -870,6 +877,10 @@ def generate_report_excel_workbook(
         "Part Serial",
         "Customer QR",
         "Prescription ID",
+        # Parameter Health (OOR)
+        "Monitor Verdict",
+        "OOR / Compared",
+        "OOR Status (≥4 Rule)",
         # Predicted
         "OK",
         "Blow Hole",
@@ -894,7 +905,9 @@ def generate_report_excel_workbook(
         cell.font = font_sub_header
         if col_idx <= 9:
             cell.fill = fill_id_header
-        elif col_idx <= 16:
+        elif col_idx <= 12:
+            cell.fill = fill_oor_header
+        elif col_idx <= 19:
             cell.fill = fill_pred_header
         else:
             cell.fill = fill_rec_header
@@ -904,6 +917,11 @@ def generate_report_excel_workbook(
     # Data Rows
     current_row = 3
     for b in defect_comparison_rows:
+        oor_status_str = (
+            f"≥4 OOR ({b.params_out_of_range} out of range)"
+            if (b.params_out_of_range or 0) >= 4
+            else f"<4 OOR ({b.params_out_of_range} out of range)"
+        )
         row_vals = [
             b.source,
             b.today_date,
@@ -914,6 +932,10 @@ def generate_report_excel_workbook(
             b.part_serial,
             b.customer_qr,
             b.prescription_id,
+            # Parameter Health
+            b.monitor_verdict or "-",
+            f"{b.params_out_of_range} / {b.params_compared}" if b.params_compared else str(b.params_out_of_range),
+            oor_status_str,
             # Predicted
             b.predicted.ok,
             b.predicted.blow_hole,
@@ -935,7 +957,7 @@ def generate_report_excel_workbook(
 
         for col_idx, val in enumerate(row_vals, 1):
             cell = ws2.cell(row=current_row, column=col_idx, value=val)
-            cell.font = font_data_bold if col_idx in [4, 7, 10, 17] else font_data
+            cell.font = font_data_bold if col_idx in [4, 7, 10, 13, 20] else font_data
             cell.alignment = align_center
             cell.border = thin_border
             if current_row % 2 == 0:
@@ -948,6 +970,15 @@ def generate_report_excel_workbook(
 
     # Column Widths
     for c_idx in range(1, len(headers_defect_comparison) + 1):
+        col_letter = get_column_letter(c_idx)
+        if c_idx in [7, 8]:
+            ws2.column_dimensions[col_letter].width = 20
+        elif c_idx in [5, 6, 9, 12]:
+            ws2.column_dimensions[col_letter].width = 22
+        elif c_idx in [10, 11]:
+            ws2.column_dimensions[col_letter].width = 16
+        else:
+            ws2.column_dimensions[col_letter].width = 12
         col_letter = get_column_letter(c_idx)
         if c_idx in [7, 8]:
             ws2.column_dimensions[col_letter].width = 20
