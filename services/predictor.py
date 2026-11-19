@@ -244,9 +244,16 @@ def monitor_data(die):
     last_params = df_raw.set_index("parameter_name")["value"].to_dict()
     # print(last_params)
 
-    ranges_df = df_raw.set_index("parameter_name")[["recomended_baseline", "recomended_lower_tolerance",  "recomended_upper_tolerance"]]
-    set_ranges = ranges_df.fillna(0).to_dict(orient="index")
-    
+    latest_ranges = get_latest_calibration(die=die)
+    set_ranges = {
+        param: {
+            "recomended_baseline": vals.get("baseline"),
+            "recomended_lower_tolerance": vals.get("lower_tolerance"),
+            "recomended_upper_tolerance": vals.get("upper_tolerance"),
+        }
+        for param, vals in latest_ranges.items()
+    }
+
     last_params["part_id"] = part_id
     timestamp = df_raw["created_at"].iloc[0]      
     ist = timezone(timedelta(hours=5, minutes=30))
@@ -309,30 +316,16 @@ def predictions(die, part_id=None):
     df.columns = df.columns.str.strip()
 
     from services.monthly_predict import (
-        _calibration_for, _load_calibration, _load_part_params, _monitor_counts,
+        _load_calibration, _load_part_params, _monitor_counts,
+        calibrate_probability,
     )
 
     id_part = df_raw["id_part"].iloc[0]
     cur.execute(
-        "SELECT production_date, manufactored_on FROM rico.part WHERE id_part = %s",
-        (id_part,),
+        "SELECT MAX(id_calibration) FROM calibration_parameter WHERE id_die = %s",
+        (die,),
     )
-    part_row = cur.fetchone()
-    if part_row and part_row[0] is not None:
-        production_day = part_row[0]
-    elif part_row and part_row[1] is not None:
-        ist = timezone(timedelta(hours=5, minutes=30))
-        production_day = (part_row[1].astimezone(ist) - timedelta(hours=6)).date()
-    else:
-        production_day = date.today()
-
-    calibration_id, _ = _calibration_for(cur, die, production_day)
-    if calibration_id is None:
-        cur.execute(
-            "SELECT MAX(id_calibration) FROM calibration_parameter WHERE id_die = %s",
-            (die,),
-        )
-        calibration_id = cur.fetchone()[0]
+    calibration_id = cur.fetchone()[0]
 
     query = """
         SELECT c.parameter_name, c.baseline, c.upper_tolerance, c.lower_tolerance
@@ -396,9 +389,9 @@ def predictions(die, part_id=None):
         X_pca    = model['pca'].transform(X_scaled)
         X_cca    = model['cca'].transform(X_pca)
         prob     = model['model'].predict_proba(X_cca)[:,1]
-        pred_results.append(prob)
+        pred_results.append(calibrate_probability(float(prob[0])))
 
-    predictions = [float(p[0]) for p in pred_results]
+    predictions = [float(p) for p in pred_results]
     calibration = _load_calibration(cur, calibration_id)
     part_values = _load_part_params(cur, [id_part]).get(id_part, {})
     monitor = _monitor_counts(part_values, calibration)
