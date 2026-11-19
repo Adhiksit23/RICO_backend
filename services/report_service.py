@@ -391,39 +391,33 @@ def fetch_part_defect_comparisons(
 
             if parts:
                 part_ids = [r[0] for r in parts]
-                # Fetch actual recorded defects + new OOR monitoring columns
                 cur.execute(
                     """
-                    SELECT
-                        id_part,
-                        defect_type,
-                        monitor_verdict,
-                        params_out_of_range,
-                        params_compared,
-                        params_total
+                    SELECT id_part, defect_type
                     FROM rico.part_quality
                     WHERE id_part = ANY(%s);
                     """,
                     (part_ids,),
                 )
-                # pq_map: part_id -> list of (defect_type, monitor_verdict, params_oor, params_compared, params_total)
-                pq_map: Dict[str, List[tuple]] = {}
-                for pid, dtype, mv, pct_oor, pc, pt in cur.fetchall():
-                    pq_map.setdefault(pid, []).append((dtype, mv, pct_oor, pc, pt))
+                pq_map: Dict[str, List[str]] = {}
+                for pid, dtype in cur.fetchall():
+                    pq_map.setdefault(pid, []).append(dtype)
 
-                # Fetch AI predictions
                 cur.execute(
                     """
-                    SELECT id_part, defect_type, defect_probability 
-                    FROM rico.part_quality_prediction 
+                    SELECT id_part, defect_type, defect_probability,
+                           monitor_verdict, params_out_of_range, params_compared, params_total
+                    FROM rico.part_quality_prediction
                     WHERE id_part = ANY(%s);
                     """,
                     (part_ids,),
                 )
                 pred_map: Dict[str, Dict[str, float]] = {}
-                for pid, dtype, prob in cur.fetchall():
+                monitor_map: Dict[str, tuple] = {}
+                for pid, dtype, prob, mv, pct_oor, pc, pt in cur.fetchall():
                     if pid not in pred_map:
                         pred_map[pid] = {}
+                        monitor_map[pid] = (mv, pct_oor, pc, pt)
                     pred_map[pid][(dtype or "").lower()] = float(prob) if prob is not None else 0.0
 
                 today_str = datetime.now(IST).strftime("%Y-%m-%d")
@@ -433,16 +427,15 @@ def fetch_part_defect_comparisons(
                     mfg_date = mfg_on.strftime("%Y-%m-%d") if hasattr(mfg_on, "strftime") else str(mfg_on)[:10]
                     mfg_time = mfg_on.strftime("%H:%M:%S") if hasattr(mfg_on, "strftime") else "00:00:00"
 
-                    # --- OOR data from part_quality rows (same values across all rows for a part) ---
                     pq_entries = pq_map.get(part_id, [])
-                    act_list = [entry[0].lower() for entry in pq_entries if entry[0]]
+                    act_list = [entry.lower() for entry in pq_entries if entry]
                     has_actual_defect = len(act_list) > 0
 
-                    # Take OOR fields from the first row (they are part-level, not defect-level)
-                    part_oor       = int(pq_entries[0][2] or 0) if pq_entries else 0
-                    part_compared  = int(pq_entries[0][3] or 0) if pq_entries else 0
-                    part_total     = int(pq_entries[0][4] or 0) if pq_entries else 0
-                    part_mv        = str(pq_entries[0][1] or "").strip().upper() if pq_entries else ""
+                    mv, pct_oor, pc, pt = monitor_map.get(part_id, ("", 0, 0, 0))
+                    part_oor       = int(pct_oor or 0)
+                    part_compared  = int(pc or 0)
+                    part_total     = int(pt or 0)
+                    part_mv        = str(mv or "").strip().upper()
 
                     def check_actual(name: str) -> str:
                         target = name.lower().replace("_", "")
