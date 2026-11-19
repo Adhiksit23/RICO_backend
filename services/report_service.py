@@ -1038,24 +1038,39 @@ def generate_report_excel_workbook(
     fn_cell2 = ws2.cell(row=current_row + 1, column=1, value="Responsible: Neuriot labs")
     fn_cell2.font = Font(name=font_family, size=9, italic=True, bold=True, color="555555")
 
-    # Column Widths
-    for c_idx in range(1, len(headers_defect_comparison) + 1):
-        col_letter = get_column_letter(c_idx)
-        if c_idx in [7, 8]:
-            ws2.column_dimensions[col_letter].width = 20
-        elif c_idx in [5, 6, 9, 12]:
-            ws2.column_dimensions[col_letter].width = 22
-        elif c_idx in [10, 11]:
-            ws2.column_dimensions[col_letter].width = 16
-        else:
-            ws2.column_dimensions[col_letter].width = 12
-        col_letter = get_column_letter(c_idx)
-        if c_idx in [7, 8]:
-            ws2.column_dimensions[col_letter].width = 20
-        elif c_idx in [5, 6, 9]:
-            ws2.column_dimensions[col_letter].width = 16
-        else:
-            ws2.column_dimensions[col_letter].width = 12
+    # Column Widths for Sheet 2 (Predicted vs Actual)
+    col_widths_s2 = {
+        1: 16,   # Source ("Neuriot labs")
+        2: 14,   # Today's Date
+        3: 16,   # Machine ID
+        4: 10,   # Die ID
+        5: 18,   # Manufactured Date
+        6: 16,   # Manufactured Time
+        7: 20,   # Part Serial
+        8: 24,   # Customer QR
+        9: 16,   # Status (Traceability)
+        10: 18,  # Prescription ID
+        11: 16,  # Monitor Verdict
+        12: 18,  # OOR / Compared
+        13: 26,  # OOR Status (≥4 Rule)
+        14: 12,  # OK (Predicted)
+        15: 14,  # Blow Hole
+        16: 14,  # Non-filling
+        17: 14,  # Porosity
+        18: 14,  # Shrinkage
+        19: 14,  # Chip-off
+        20: 14,  # Crack
+        21: 12,  # OK (Recorded)
+        22: 14,  # Blow Hole
+        23: 14,  # Non-filling
+        24: 14,  # Porosity
+        25: 14,  # Shrinkage
+        26: 14,  # Chip-off
+        27: 14,  # Crack
+        28: 12,  # Other
+    }
+    for c_idx, w in col_widths_s2.items():
+        ws2.column_dimensions[get_column_letter(c_idx)].width = w
 
     # =========================================================================
     # SHEET 3: Prediction Accuracy
@@ -1073,27 +1088,27 @@ def generate_report_excel_workbook(
     font_kpi_val = Font(name=font_family, size=11, bold=True, color="1F4E79")
 
     # Banner Title
-    ws3.merge_cells("A1:K1")
+    ws3.merge_cells("A1:L1")
     ws3["A1"] = "NEURIOT LABS - PREDICTION ACCURACY REPORT"
     ws3["A1"].fill = fill_id_header
     ws3["A1"].font = font_top_header
     ws3["A1"].alignment = align_center
 
-    ws3.merge_cells("A2:K2")
+    ws3.merge_cells("A2:L2")
     ws3["A2"] = (
         f"Die: {die or 'All'} | Machine: {machine or 'All'} | Period: {period.upper()} | "
-        f"Target: 6 Defect Types (Evaluated after 3 days of shop floor inspection)"
+        f"Target: 6 Defect Types (Dual Gate: Prob > 60% & OOR >= 4 | Evaluated after 3 days)"
     )
     ws3["A2"].fill = PatternFill(start_color="203764", end_color="203764", fill_type="solid")
     ws3["A2"].font = Font(name=font_family, size=9, italic=True, color="D9E1F2")
     ws3["A2"].alignment = align_center
 
-    # KPI Summary Cards Block (Rows 4-5)
+    # KPI Summary Cards Block (Rows 4-5) - spans all 12 columns (3 cols each)
     kpis = [
-        ("Overall Prediction Accuracy", f"{accuracy_report.overall_accuracy_pct}%", "A4:B4", "A5:B5"),
-        ("Total Sample (Predicted Defects)", str(accuracy_report.sample_size), "C4:D4", "C5:D5"),
-        ("Confirmed Defects (Gains)", str(accuracy_report.total_gains), "E4:F4", "E5:F5"),
-        ("False Alarms (Losses)", str(accuracy_report.total_losses), "G4:H4", "G5:H5"),
+        ("Overall Prediction Accuracy", f"{accuracy_report.overall_accuracy_pct}%", "A4:C4", "A5:C5"),
+        ("Total Sample (Predicted Defects)", str(accuracy_report.sample_size), "D4:F4", "D5:F5"),
+        ("Confirmed Defects (Gains)", str(accuracy_report.total_gains), "G4:I4", "G5:I5"),
+        ("False Alarms (Losses)", str(accuracy_report.total_losses), "J4:L4", "J5:L5"),
     ]
     for label, val, lbl_range, val_range in kpis:
         ws3.merge_cells(lbl_range)
@@ -1233,19 +1248,20 @@ def generate_report_excel_workbook(
     )
     fn_note.font = Font(name=font_family, size=8, italic=True, color="777777")
 
-    # Column Widths for Sheet 3
+    # Column Widths for Sheet 3 (Prediction Accuracy)
     col_widths_s3 = {
         1: 20,   # Part Serial
-        2: 18,   # Customer QR
-        3: 16,   # Prescription ID
-        4: 16,   # Machine ID
-        5: 12,   # Die ID
-        6: 18,   # Mfg Date
-        7: 18,   # Mfg Time
-        8: 16,   # Defect Type
-        9: 18,   # Predicted Flag
-        10: 18,  # Actual Recorded
-        11: 16,  # Outcome
+        2: 24,   # Customer QR
+        3: 16,   # Status (Traceability)
+        4: 18,   # Prescription ID
+        5: 16,   # Machine ID
+        6: 12,   # Die ID
+        7: 18,   # Manufactured Date
+        8: 16,   # Manufactured Time
+        9: 18,   # Defect Type
+        10: 18,  # Predicted Flag
+        11: 18,  # Actual Recorded
+        12: 16,  # Outcome (GAIN / LOSS)
     }
     for c_idx, w in col_widths_s3.items():
         ws3.column_dimensions[get_column_letter(c_idx)].width = w
