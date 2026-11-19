@@ -63,14 +63,15 @@ PARAM_LIST = [
 ]
 
 DIE_LIST = ["S14", "S16", "S17", "S18"]
+PRODUCTION_DAY_OFFSET = timedelta(hours=6)
 
-def store_defect(cur, row, date_ist, id_client, id_machine):
+def store_defect(cur, row, date_ist, id_client, id_machine, part_id=None):
     defect = row['rejection']['reason']
     category = row['rejection']['category']
     zone = row['rejection']['zone']
     sub_zone = row['rejection']['subZone']
     view = row['rejection']['view']
-    part_id = row['part']['id']
+    part_id = part_id or row['part']['id']
     id_die = row['part']['die']
 
     cur.execute("""
@@ -93,6 +94,56 @@ def date_processing(date):
     ist = timezone(timedelta(hours=5, minutes=30))
     correct_dt = naive.replace(tzinfo=ist)  # now correctly IST-aware
     return correct_dt
+
+
+def extract_shot_number(part_id):
+    if not part_id or len(part_id) < 10:
+        return None
+    suffix = part_id[9:]
+    if not suffix.isdigit():
+        return None
+    return int(suffix)
+
+
+def derive_production_date(shot: dict, date_ist: datetime) -> date:
+    raw = shot.get("date")
+    if raw:
+        try:
+            return date.fromisoformat(str(raw)[:10])
+        except ValueError:
+            pass
+    return (date_ist - PRODUCTION_DAY_OFFSET).date()
+
+
+def find_existing_part_id(cur, id_die, shot_number, production_date):
+    if shot_number is None or production_date is None:
+        return None
+
+    cur.execute(
+        """
+        SELECT id_part
+        FROM part
+        WHERE id_die = %s
+          AND (
+                (shot_number = %s AND production_date = %s)
+             OR (substring(id_part FROM 10) ~ '^[0-9]+$'
+                 AND substring(id_part FROM 10)::bigint = %s
+                 AND ((manufactored_on AT TIME ZONE 'Asia/Kolkata')
+                      - interval '6 hours')::date = %s)
+          )
+        LIMIT 1
+        """,
+        (
+            id_die,
+            shot_number,
+            production_date,
+            shot_number,
+            production_date,
+        ),
+    )
+
+    found = cur.fetchone()
+    return found[0] if found else None
 
 def process_data(data):
        
@@ -117,10 +168,30 @@ def process_data(data):
     customer_qr = data['part']['customerQr']
     print("Customer Qr code is: ", customer_qr)
     date_ist = date_processing(date=recorded_stamp)
-
     #Connect to database
     conn = psycopg2.connect(**DB_CONFIG)
-    cur  = conn.cursor()
+    cur = conn.cursor()
+
+    shot = data.get("shot") or {}
+    part = data.get("part") or {}
+    try:
+        shot_number = int(shot.get("number"))
+    except (TypeError, ValueError):
+        shot_number = extract_shot_number(part_id)
+
+    production_date = derive_production_date(shot, date_ist)
+    existing_part_id = find_existing_part_id(
+        cur, id_die, shot_number, production_date
+    )
+    if existing_part_id and existing_part_id != part_id:
+        print(
+            f"Shot {shot_number} on {production_date} already stored as "
+            f"{existing_part_id}; writing under that id instead of {part_id}"
+        )
+        part_id = existing_part_id
+
+    part_status = part.get("status") or "in_progress"
+
     #Get client ID to match with  
     cur.execute(
     "SELECT id_client FROM client WHERE name = %s",
@@ -137,15 +208,20 @@ def process_data(data):
 
     #Start entering data
     cur.execute("""
-        INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at, customer_qr)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at, customer_qr, shot_number, production_date, status)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (id_part) DO UPDATE SET
             id_die = EXCLUDED.id_die,
             id_client = EXCLUDED.id_client,
             id_machine = EXCLUDED.id_machine,
             manufactored_on = EXCLUDED.manufactored_on,
-            customer_qr = COALESCE(NULLIF(EXCLUDED.customer_qr, ''), rico.part.customer_qr)
-""", (part_id, id_die, id_client, id_machine, date_ist, datetime.now(), customer_qr))
+            customer_qr = COALESCE(NULLIF(EXCLUDED.customer_qr, ''), rico.part.customer_qr),
+            shot_number = EXCLUDED.shot_number,
+            production_date = EXCLUDED.production_date,
+            status = EXCLUDED.status
+    """, (part_id, id_die, id_client, id_machine, date_ist, datetime.now(), customer_qr,
+          shot_number, production_date, part_status))
+
 
     for param, val in data['shot']['parameters'].items():
         if(param not in PARAM_LIST):
@@ -167,27 +243,33 @@ def process_data(data):
     print("Defect seen is: ", data['rejection']['reason'])
     if(data['rejection']['reason'] != None):
         print("Defect being recored is: ", data['rejection']['reason'])
-        store_defect(cur, data, date_ist, id_client, id_machine)
+        store_defect(cur, data, date_ist, id_client, id_machine, part_id=part_id)
 
     conn.commit()
     cur.close()
     conn.close()
     return
 
-def store_quality_pred(predictions, part, TARGET_DEFECTS, cur):
+def store_quality_pred(predictions, part, TARGET_DEFECTS, cur, monitor=None):
     id_part = part["id_part"].iloc[0]
     print("Storing predictions for: ", id_part)
     id_die = part["id_die"].iloc[0]
     id_machine = part["id_machine"].iloc[0]
     id_client = part["id_client"].iloc[0]
+    verdict, out_of_range, params_compared, params_total = monitor or (None, None, None, None)
     for i in range(len(TARGET_DEFECTS)): 
         cur.execute("""
-                INSERT INTO part_quality_prediction (id_part, id_die, id_client, id_machine, defect_type, defect_probability, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO part_quality_prediction (id_part, id_die, id_client, id_machine, defect_type, defect_probability, monitor_verdict, params_out_of_range, params_compared, params_total, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id_part, defect_type) DO UPDATE SET
                     defect_probability = EXCLUDED.defect_probability,
+                    monitor_verdict = EXCLUDED.monitor_verdict,
+                    params_out_of_range = EXCLUDED.params_out_of_range,
+                    params_compared = EXCLUDED.params_compared,
+                    params_total = EXCLUDED.params_total,
                     updated_at = EXCLUDED.updated_at
-        """, (id_part, id_die, int(id_client), id_machine, TARGET_DEFECTS[i], predictions[i], datetime.now(), datetime.now()))
+        """, (id_part, id_die, int(id_client), id_machine, TARGET_DEFECTS[i], predictions[i],
+              verdict, out_of_range, params_compared, params_total, datetime.now(), datetime.now()))
     return
 
 def _as_float(value):

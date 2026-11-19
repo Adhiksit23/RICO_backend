@@ -36,6 +36,7 @@ LIMIT = "100"
 PAGE = "1"
 SHOT_RESULT = "all"
 PAGE_SIZE = "100"
+PRODUCTION_DAY_OFFSET = timedelta(hours=6)
 
 names_UOM = {
     'accel_point': 'mm',
@@ -165,6 +166,24 @@ def date_processing(raw_date: str) -> datetime:
     return naive.replace(tzinfo=ist)
 
 
+def derive_production_date(row: dict, date_ist: datetime) -> date:
+    for key in ("production_date", "shot_date"):
+        raw = row.get(key)
+        if raw:
+            try:
+                return date.fromisoformat(str(raw)[:10])
+            except ValueError:
+                pass
+    return (date_ist - PRODUCTION_DAY_OFFSET).date()
+
+
+def build_part_id(row: dict) -> str:
+    fields = ("shot_month", "shot_day", "shot_hour", "shot_minute")
+    prefix = "".join(str(row[field]).zfill(2) for field in fields)
+    machine_digit = (row.get("machine_name") or "")[-1:]
+    return f"{prefix}{machine_digit}{int(row['shot_number']):04d}"
+
+
 def process_data_shot(data: dict) -> Optional[tuple[str, str]]:
     """Upsert the shot part; return ``(id_die, id_part)`` when a part was saved."""
     id_die = data.get("die_name")
@@ -172,20 +191,19 @@ def process_data_shot(data: dict) -> Optional[tuple[str, str]]:
     if id_die not in DIE_LIST:
         return None
 
-    part_id = (
-        data["shot_month"]
-        + data["shot_day"]
-        + data["shot_hour"]
-        + data["shot_minute"]
-        + data["machine_name"][-1:]
-        + str(data["shot_number"])
-    )
-    logger.info("[shot_update] part_id=%s", part_id)
-
     machine_id = data["machine_name"]
     if machine_id[-1:] != "2":
         logger.info("[shot_update] Skipping machine %s (not UBE 850T-02)", machine_id)
         return None
+
+    part_id = build_part_id(data)
+    shot_number = int(data["shot_number"])
+    date_ist = date_processing(data["recorded_at"])
+    production_date = derive_production_date(data, date_ist)
+    logger.info(
+        "[shot_update] part_id=%s shot_number=%s production_date=%s",
+        part_id, shot_number, production_date,
+    )
 
     conn = psycopg2.connect(**DB_CONFIG)
     try:
@@ -202,19 +220,33 @@ def process_data_shot(data: dict) -> Optional[tuple[str, str]]:
             raise RuntimeError("No machine found for id_client=1")
         id_machine = machine_row[0]
 
-        date_ist = date_processing(data["recorded_at"])
-
         cur.execute(
             """
-            INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO part (
+                id_part, id_die, id_client, id_machine,
+                manufactored_on, created_at, shot_number, production_date, status
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (id_part) DO UPDATE SET
                 id_die = EXCLUDED.id_die,
                 id_client = EXCLUDED.id_client,
                 id_machine = EXCLUDED.id_machine,
-                manufactored_on = EXCLUDED.manufactored_on
+                manufactored_on = EXCLUDED.manufactored_on,
+                shot_number = EXCLUDED.shot_number,
+                production_date = EXCLUDED.production_date,
+                status = EXCLUDED.status
             """,
-            (part_id, id_die, id_client, id_machine, date_ist, datetime.now()),
+            (
+                part_id,
+                id_die,
+                id_client,
+                id_machine,
+                date_ist,
+                datetime.now(),
+                shot_number,
+                production_date,
+                "in_progress",
+            ),
         )
 
         for param, val in data.items():
