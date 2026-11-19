@@ -129,6 +129,7 @@ def run_iot_sync(trigger: str = "scheduler") -> dict[str, Any]:
         "status": "ok",
         "trigger": trigger,
         "shot_sync": None,
+        "shot_sync_saved": None,
         "predict_monitor": None,
         "legacy_sync": None,
         "finished_at": None,
@@ -144,11 +145,17 @@ def run_iot_sync(trigger: str = "scheduler") -> dict[str, Any]:
         token = get_auth_token_shot()
         saved = get_iot_data_shot(token, data_path)
         result["shot_sync"] = "ok"
-        logger.info("[iot-sync] Shot sync completed (%s)", trigger)
+        result["shot_sync_saved"] = len(saved)
+        logger.info("[iot-sync] Shot sync completed (%s), saved %s parts", trigger, len(saved))
 
         if saved and PREDICT_MONITOR_ENABLED: 
-            die, part_id = saved
-            _queue_predict_monitor(die, part_id, trigger)
+            seen = set()
+            for die, part_id in saved:
+                key = (die, part_id)
+                if key in seen:
+                    continue
+                seen.add(key)
+                _queue_predict_monitor(die, part_id, trigger)
             result["predict_monitor"] = "queued"
         else:
             result["predict_monitor"] = "not_queued"
@@ -199,6 +206,7 @@ def run_iot_sync(trigger: str = "scheduler") -> dict[str, Any]:
             "trigger": trigger,
             "error": result.get("error"),
             "shot_sync": result.get("shot_sync"),
+            "shot_sync_saved": result.get("shot_sync_saved"),
             "predict_monitor": result.get("predict_monitor"),
             "legacy_sync": result.get("legacy_sync"),
             "finished_at": result["finished_at"],

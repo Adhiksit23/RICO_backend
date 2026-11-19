@@ -22,6 +22,7 @@ _last_read_shot_number = None
 _last_read_serial_no = None
 _last_read_timestamp = None
 _last_seen_page = 1
+_last_seen_key = None
 
 BASE_URL = f"{IOT_BASE_URL}"
  
@@ -69,16 +70,9 @@ PARAM_MAPPING = {
 }
 
 def update_date_path() -> str:
-    #Connect to database
-    # Fall back to a default if the table is empty
-    global _last_seen_page
-   
     date_from =  date.today().strftime("%Y-%m-%dT06:00:00")
     date_to =  (date.today() + timedelta(days=1)).strftime("%Y-%m-%dT06:00:00")
-
-    # date_from = "2026-10-10T06:00:00"
-    # date_to = "2026-10-19T06:00:00"
-    data_path = f"/v1/reports/report/historical?dateFrom={date_from}&dateTo={date_to}&page={_last_seen_page}&pageSize={PAGE_SIZE}&partCategory=HPDC&clean=1"
+    data_path = f"/v1/reports/report/historical?dateFrom={date_from}&dateTo={date_to}&page=1&pageSize={PAGE_SIZE}&partCategory=HPDC&clean=1"
     return data_path
 
 
@@ -100,52 +94,32 @@ def get_auth_token() -> str:
         raise ValueError(f"Expected a string token at '{TOKEN_JSON_PATH}', got: {token!r}")
     return token
 
-def _get_row_identifiers(row):
-    try:
-        shot_num = row.get("shot", {}).get("number")
-        serial_no = row.get("serialNo")
-        ts = row.get("shot", {}).get("recordedAt") or row.get("__pr_final_scan_at") or row.get("__pr_first_scan_at")
-        return shot_num, serial_no, ts
-    except Exception:
-        return None, None, None
+def _row_key(row):
+    shot_num = row.get("shot", {}).get("number")
+    serial_no = row.get("serialNo")
+    ts = row.get("shot", {}).get("recordedAt") or row.get("__pr_final_scan_at") or row.get("__pr_first_scan_at")
+    return (str(ts), str(serial_no), int(shot_num) if shot_num is not None else -1)
 
 
-def _row_matches_last_seen(row):
-    global _last_read_shot_number, _last_read_serial_no, _last_read_timestamp
-    if _last_read_shot_number is None and _last_read_serial_no is None and _last_read_timestamp is None:
-        return False
-    r_shot_num, r_serial_no, r_ts = _get_row_identifiers(row)
-    # Try exact match first
-    if r_shot_num == _last_read_shot_number and r_serial_no == _last_read_serial_no and r_ts == _last_read_timestamp:
-        return True
-    # Be more lenient - match if shot number and serial number match
-    if _last_read_shot_number is not None and _last_read_serial_no is not None:
-        if r_shot_num == _last_read_shot_number and r_serial_no == _last_read_serial_no:
-            return True
-    # Match if just shot number matches
-    if _last_read_shot_number is not None and r_shot_num == _last_read_shot_number:
-        return True
-    # Match if just serial number matches
-    if _last_read_serial_no is not None and r_serial_no == _last_read_serial_no:
-        return True
-    return False
+def _set_last_seen(key):
+    global _last_seen_key, _last_read_shot_number, _last_read_serial_no, _last_read_timestamp, _last_seen_page
+    _last_seen_key = key
+    if key is not None:
+        _last_read_timestamp, _last_read_serial_no, _last_read_shot_number = key
+    _last_seen_page = 1
 
 
 def get_iot_data(token: str, data_path):
-    """Step 2: GET the data endpoint using the token from step 1."""
-    global _last_read_shot_number, _last_read_serial_no, _last_read_timestamp, _last_seen_page
+    """GET traceability reports and process every row newer than the cursor.
+
+    Rows are newest-first. Scans from page 1 until the last seen row is found,
+    collecting all newer rows across page boundaries, then processes them
+    oldest-to-newest.
+    """
     headers = {"Authorization": f"Bearer {token}"}
+    max_pages = 50
 
     import re as _re
-
-    # Rows are in stack order: newest at top (index 0), oldest at bottom
-    current_page = _last_seen_page
-    m = _re.search(r"page=(\d+)", data_path)
-    if m:
-        try:
-            current_page = int(m.group(1))
-        except Exception:
-            current_page = _last_seen_page
 
     def fetch_page(page_num):
         page_path = _re.sub(r"page=\d+", f"page={page_num}", data_path) if _re.search(r"page=\d+", data_path) else (data_path + f"&page={page_num}")
@@ -157,139 +131,60 @@ def get_iot_data(token: str, data_path):
         resp.raise_for_status()
         return resp.json()
 
-    # If we have a last seen row, search forward from current page until we find it
-    if _last_read_shot_number is not None or _last_read_serial_no is not None or _last_read_timestamp is not None:
-        page = current_page
-        max_pages = 50
-        pages_searched = 0
-        while pages_searched < max_pages:
-            try:
-                data = fetch_page(page)
-            except Exception as e:
-                print(f"[defect_update] Error fetching page {page}: {e}")
-                break
+    cursor = _last_seen_key
+    new_rows = []
+    seen = set()
+    found = False
+    total_pages = 1
 
-            rows = data.get("records") or []
-            if not rows:
-                break
+    for page in range(1, max_pages + 1):
+        try:
+            data = fetch_page(page)
+        except Exception as e:
+            print(f"[defect_update] Error fetching page {page}: {e}")
+            break
 
-            # Look for last seen row (newest at top, so search from index 0 downward)
-            for idx, r in enumerate(rows):
-                if _row_matches_last_seen(r):
-                    # Found last seen row at idx (top is newest). New rows are above it - i.e. indices 0..idx-1
-                    new_rows_to_process = rows[:idx]  # from top down to just above last seen
-                    new_rows_processed = 0
-                    for row in new_rows_to_process:
-                        shot_num, serial_no, ts = _get_row_identifiers(row)
-                        try:
-                            process_data(row)
-                        except Exception as e:
-                            print(f"[defect_update] Error processing row: {e}")
-                        new_rows_processed += 1
-                        _last_read_shot_number = shot_num
-                        _last_read_serial_no = serial_no
-                        _last_read_timestamp = ts
-                    _last_seen_page = page
-                    if new_rows_processed == 0:
-                        print("[defect_update] No new rows to process (all already seen)")
-                    return
-
+        if page == 1:
             pagination = data.get("pagination") or {}
-            has_next = pagination.get("hasNextPage") if "hasNextPage" in pagination else pagination.get("has_next_page")
-            total_pages = pagination.get("totalPages") or pagination.get("total_pages") or pagination.get("lastPage")
-            if has_next is False:
-                break
-            if total_pages:
-                try:
-                    if page >= int(total_pages):
-                        break
-                except Exception:
-                    pass
-            if has_next is None and total_pages is None:
-                # No pagination info, don't loop forever
-                break
-            page += 1
-            pages_searched += 1
-
-        # If not found after searching forward through pages, go to the last most page
-        # and start from the first most value (index 0) in that last page
-        try:
-            page1_data = fetch_page(1)
-            pagination1 = page1_data.get("pagination") or {}
-            last_page = pagination1.get("totalPages") or pagination1.get("total_pages") or pagination1.get("lastPage")
-            if not last_page:
-                # try to find from any pagination
-                last_page = current_page
+            raw_total = pagination.get("totalPages") or pagination.get("total_pages") or pagination.get("lastPage") or 1
             try:
-                last_page = int(last_page)
-            except Exception:
-                last_page = current_page
+                total_pages = max(1, int(raw_total))
+            except (TypeError, ValueError):
+                total_pages = 1
 
-            data_last = fetch_page(last_page)
-            rows = data_last.get("records") or []
-            if not rows:
-                print("[defect_update] No rows returned")
-                return
-            # Start from the first most value (top of stack) in the last page
-            new_rows_processed = 0
-            for row in rows:
-                shot_num, serial_no, ts = _get_row_identifiers(row)
-                try:
-                    process_data(row)
-                except Exception as e:
-                    print(f"[defect_update] Error processing row: {e}")
-                new_rows_processed += 1
-                _last_read_shot_number = shot_num
-                _last_read_serial_no = serial_no
-                _last_read_timestamp = ts
-            _last_seen_page = last_page
-            if new_rows_processed == 0:
-                print("[defect_update] No new rows to process (all already seen)")
-            return
-        except Exception as e:
-            print(f"[defect_update] Error going to last page: {e}")
-            return
-    else:
-        # No last seen row yet - go to last most page and process from the bottom of that page
-        try:
-            page1_data = fetch_page(1)
-            pagination1 = page1_data.get("pagination") or {}
-            last_page = pagination1.get("totalPages") or pagination1.get("total_pages") or pagination1.get("lastPage")
-            if not last_page:
-                last_page = current_page
-            try:
-                last_page = int(last_page)
-            except Exception:
-                last_page = current_page
-            data = fetch_page(last_page)
-        except Exception as e:
-            print(f"[defect_update] Error fetching page: {e}")
-            return
         rows = data.get("records") or []
-        if not rows:
-            print("[defect_update] No rows returned")
-            return
-        # Newest at top, oldest at bottom - process from bottom
-        new_rows_processed = 0
-        for row in reversed(rows):
-            shot_num, serial_no, ts = _get_row_identifiers(row)
-            try:
-                process_data(row)
-            except Exception as e:
-                print(f"[defect_update] Error processing row: {e}")
-            new_rows_processed += 1
-            _last_read_shot_number = shot_num
-            _last_read_serial_no = serial_no
-            _last_read_timestamp = ts
-        pagination = data.get("pagination") or {}
-        page_num = pagination.get("page") or last_page
+        for row in rows:
+            key = _row_key(row)
+            if cursor is not None and key == cursor:
+                found = True
+                break
+            if key in seen:
+                continue
+            seen.add(key)
+            new_rows.append(row)
+
+        if found:
+            break
+        if page >= total_pages:
+            break
+
+    if cursor is not None and not found:
+        print(f"[defect_update] Last seen row not found within {max_pages} pages; processed {len(new_rows)} rows")
+
+    last_success_key = cursor
+    for row in reversed(new_rows):
+        key = _row_key(row)
         try:
-            _last_seen_page = int(page_num)
-        except Exception:
-            _last_seen_page = last_page
-        if new_rows_processed == 0:
-            print("[defect_update] No new rows to process (all already seen)")
-        return
+            process_data(row)
+            last_success_key = key
+        except Exception as e:
+            print(f"[defect_update] Error processing row: {e}")
+
+    if last_success_key != cursor:
+        _set_last_seen(last_success_key)
+
+    if not new_rows:
+        print("[defect_update] No new rows to process (all already seen)")
 
 
 def get_latest_calibration(machine: str = None, die: str = None):
@@ -378,25 +273,33 @@ def latest_model_path(die, defect):
     return os.path.join("models", f"{tag}_20260605_voting.pkl")
 
 
-def predictions(die):
+def predictions(die, part_id=None):
 
     #Connect to database
     conn = psycopg2.connect(**DB_CONFIG)
     cur  = conn.cursor()
 
-    query = """
-        SELECT c.*
-        FROM operating_parameter c
-        WHERE c.id_part = (
-        SELECT id_part FROM part
-        WHERE id_die = %s
-        ORDER BY manufactored_on DESC
-        LIMIT 1
-    );
+    if part_id:
+        query = """
+            SELECT c.*
+            FROM operating_parameter c
+            WHERE c.id_part = %s
+        """
+        query_params = (part_id,)
+    else:
+        query = """
+            SELECT c.*
+            FROM operating_parameter c
+            WHERE c.id_part = (
+                SELECT id_part FROM part
+                WHERE id_die = %s
+                ORDER BY manufactored_on DESC
+                LIMIT 1
+            )
+        """
+        query_params = (die,)
 
-    """
-
-    df_raw = pd.read_sql(query, conn, params=(die,))
+    df_raw = pd.read_sql(query, conn, params=query_params)
     if df_raw.empty:
         cur.close()
         conn.close()

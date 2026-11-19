@@ -4,8 +4,11 @@ Credentials and base URLs come from services.config (env).
 """
 from __future__ import annotations
 
+import json
 import logging
+import re
 from datetime import datetime, date, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -37,6 +40,35 @@ PAGE = "1"
 SHOT_RESULT = "all"
 PAGE_SIZE = "100"
 PRODUCTION_DAY_OFFSET = timedelta(hours=6)
+
+STATE_FILE = Path(__file__).resolve().parent.parent / "data" / "shot_sync_state.json"
+_last_synced_shot_key = None
+
+
+def _load_last_synced_shot_key():
+    global _last_synced_shot_key
+    try:
+        payload = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        raw = payload.get("last_synced_shot_key")
+        if raw is not None:
+            _last_synced_shot_key = int(raw)
+    except (OSError, ValueError, TypeError):
+        pass
+    return _last_synced_shot_key
+
+
+def _save_last_synced_shot_key(key):
+    global _last_synced_shot_key
+    if key is None:
+        return
+    _last_synced_shot_key = key
+    try:
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        STATE_FILE.write_text(
+            json.dumps({"last_synced_shot_key": str(key)}), encoding="utf-8"
+        )
+    except OSError:
+        logger.exception("[shot_update] Could not persist last synced shot key")
 
 names_UOM = {
     'accel_point': 'mm',
@@ -132,32 +164,103 @@ def get_auth_token_shot() -> str:
     return token
 
 
-def get_iot_data_shot(token: str, data_path: str) -> Optional[tuple[str, str]]:
-    """GET latest PLC readings and persist the newest applicable shot.
+def get_iot_data_shot(token: str, data_path: str) -> list[tuple[str, str]]:
+    """GET PLC readings and persist every shot newer than the last synced shot.
 
-    Returns ``(id_die, id_part)`` for the saved part, or ``None`` when nothing
-    was saved (no rows, unknown die, or non-target machine).
+    Rows are newest-first. Scans from page 1 until it reaches rows already
+    synced, collecting all newer rows across page boundaries, then processes
+    them oldest-to-newest.
     """
-    url = f"{IOT_DATA_BASE_URL}{data_path}"
-    logger.info("[shot_update] Fetching %s", url)
+    logger.info("[shot_update] Fetching %s", f"{IOT_DATA_BASE_URL}{data_path}")
     headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.get(url, headers=headers, timeout=IOT_DATA_TIMEOUT)
-    resp.raise_for_status()
-    data = resp.json()
+    max_pages = 50
 
-    rows = data.get("data") or []
-    
-    if not rows:
-        logger.info("[shot_update] No shot rows returned")
-        return None
-    row = rows[0]
-    # print(rows[0].get("shot_number") == 8754)
-    # print(type(rows[0].get("shot_number")))
-    # row = next((r for r in rows if r.get("shot_number") == target_shot), None)
-    # if row is None:
-    #     logger.info("[shot_update] No row with shot_number=%s", target_shot)
-    #     return
-    return process_data_shot(row)
+    def fetch_page(page_num):
+        page_path = (
+            re.sub(r"page=\d+", f"page={page_num}", data_path)
+            if re.search(r"page=\d+", data_path)
+            else data_path + f"&page={page_num}"
+        )
+        resp = requests.get(
+            f"{IOT_DATA_BASE_URL}{page_path}",
+            headers=headers,
+            timeout=IOT_DATA_TIMEOUT,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    cursor = _load_last_synced_shot_key()
+    new_rows = []
+    seen = set()
+    found = False
+
+    for page in range(1, max_pages + 1):
+        try:
+            data = fetch_page(page)
+        except Exception:
+            logger.exception("[shot_update] Error fetching page %s", page)
+            break
+
+        rows = data.get("data") or []
+        if not rows:
+            break
+
+        pagination = data.get("pagination") or data.get("meta") or {}
+        has_next = pagination.get("hasNextPage")
+        if has_next is None:
+            has_next = pagination.get("has_next_page")
+        raw_total = (
+            pagination.get("totalPages")
+            or pagination.get("total_pages")
+            or pagination.get("lastPage")
+        )
+        try:
+            total_pages = int(raw_total) if raw_total is not None else None
+        except (TypeError, ValueError):
+            total_pages = None
+
+        for row in rows:
+            try:
+                key = int(build_part_id(row))
+            except (KeyError, TypeError, ValueError):
+                logger.warning("[shot_update] Skipping row without a usable shot id")
+                continue
+            if cursor is not None and key <= cursor:
+                found = True
+                break
+            if key in seen:
+                continue
+            seen.add(key)
+            new_rows.append((key, row))
+
+        if found:
+            break
+        if has_next is False or (total_pages is not None and page >= total_pages):
+            break
+
+    if cursor is not None and not found:
+        logger.warning(
+            "[shot_update] Last synced shot not found within %s pages; processed %s rows",
+            max_pages, len(new_rows),
+        )
+
+    saved = []
+    last_success_key = cursor
+    for key, row in reversed(new_rows):
+        result = process_data_shot(row)
+        if result:
+            saved.append(result)
+            if last_success_key is None or key > last_success_key:
+                last_success_key = key
+
+    if last_success_key != cursor:
+        _save_last_synced_shot_key(last_success_key)
+
+    logger.info(
+        "[shot_update] Saved %s of %s newer shot rows (last key %s)",
+        len(saved), len(new_rows), last_success_key,
+    )
+    return saved
 
 
 def date_processing(raw_date: str) -> datetime:

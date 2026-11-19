@@ -72,6 +72,7 @@ def run_predict_monitor_cycle(trigger: str = "scheduler") -> dict[str, Any]:
 
             try:
                 prediction = predictions(die)
+
                 entry["prediction"] = "ok"
                 logger.info("[predict-monitor] die=%s prediction=%s", die, prediction)
             except Exception as exc:
@@ -113,11 +114,10 @@ def run_predict_monitor_for_die(
     trigger: str = "shot_sync",
 ) -> dict[str, Any]:
     """
-    Run prediction + monitor for a single die right after shot sync saved its
-    latest part. Never raises.
+    Run prediction + monitor for the part just saved by shot sync. Never raises.
 
-    ``part_id`` is recorded for traceability only; predictions()/monitor_data()
-    still resolve the latest part per die (part-level targeting is a follow-up).
+    ``part_id`` is passed through to predictions() so inference uses the saved
+    part's operating parameters rather than the latest part for the die.
     """
     lock = _get_die_lock(die)
     if not lock.acquire(blocking=False):
@@ -150,7 +150,7 @@ def run_predict_monitor_for_die(
             return result
 
         try:
-            prediction = predictions(die)
+            prediction = predictions(die, part_id=part_id)
             result["prediction"] = "ok"
             result["probabilities"] = [round(float(p), 6) for p in prediction]
             logger.info(
