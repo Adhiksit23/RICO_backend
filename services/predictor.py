@@ -397,21 +397,46 @@ def predictions(die):
     """
 
     df_raw = pd.read_sql(query, conn, params=(die,))
+    if df_raw.empty:
+        cur.close()
+        conn.close()
+        return [0.0] * len(TARGET_DEFECTS)
+
     df = df_raw.pivot(index=["id_part", "id_die"], columns="parameter_name", values="value")
     df.columns = df.columns.str.strip()
-   
+
+    from services.monthly_predict import (
+        _calibration_for, _load_calibration, _load_part_params, _monitor_counts,
+    )
+
+    id_part = df_raw["id_part"].iloc[0]
+    cur.execute(
+        "SELECT production_date, manufactored_on FROM rico.part WHERE id_part = %s",
+        (id_part,),
+    )
+    part_row = cur.fetchone()
+    if part_row and part_row[0] is not None:
+        production_day = part_row[0]
+    elif part_row and part_row[1] is not None:
+        ist = timezone(timedelta(hours=5, minutes=30))
+        production_day = (part_row[1].astimezone(ist) - timedelta(hours=6)).date()
+    else:
+        production_day = date.today()
+
+    calibration_id, _ = _calibration_for(cur, die, production_day)
+    if calibration_id is None:
+        cur.execute(
+            "SELECT MAX(id_calibration) FROM calibration_parameter WHERE id_die = %s",
+            (die,),
+        )
+        calibration_id = cur.fetchone()[0]
+
     query = """
         SELECT c.parameter_name, c.baseline, c.upper_tolerance, c.lower_tolerance
         FROM calibration_parameter c
-        WHERE c.id_die = %s
-        AND c.id_calibration = (
-                  SELECT MAX(id_calibration)
-                  FROM calibration_parameter
-                  WHERE id_die = %s
-                )
-
+        WHERE c.id_die = %s AND c.id_calibration = %s
     """
-    df_baselines = pd.read_sql(query, conn, params=(die,die))
+    df_baselines = pd.read_sql(query, conn, params=(die, calibration_id))
 
     # Only S16 models do not include the DIE-CLOSE CORE IN TIME parameter;
     if die == "S16":
@@ -471,7 +496,10 @@ def predictions(die):
         pred_results.append(prob)
 
     predictions = [float(p[0]) for p in pred_results]
-    store_quality_pred(predictions, df_raw, TARGET_DEFECTS, cur)
+    calibration = _load_calibration(cur, calibration_id)
+    part_values = _load_part_params(cur, [id_part]).get(id_part, {})
+    monitor = _monitor_counts(part_values, calibration)
+    store_quality_pred(predictions, df_raw, TARGET_DEFECTS, cur, monitor=monitor)
     
     conn.commit()
     cur.close()

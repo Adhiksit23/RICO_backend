@@ -250,20 +250,26 @@ def process_data(data):
     conn.close()
     return
 
-def store_quality_pred(predictions, part, TARGET_DEFECTS, cur):
+def store_quality_pred(predictions, part, TARGET_DEFECTS, cur, monitor=None):
     id_part = part["id_part"].iloc[0]
     print("Storing predictions for: ", id_part)
     id_die = part["id_die"].iloc[0]
     id_machine = part["id_machine"].iloc[0]
     id_client = part["id_client"].iloc[0]
+    verdict, out_of_range, params_compared, params_total = monitor or (None, None, None, None)
     for i in range(len(TARGET_DEFECTS)): 
         cur.execute("""
-                INSERT INTO part_quality_prediction (id_part, id_die, id_client, id_machine, defect_type, defect_probability, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO part_quality_prediction (id_part, id_die, id_client, id_machine, defect_type, defect_probability, monitor_verdict, params_out_of_range, params_compared, params_total, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id_part, defect_type) DO UPDATE SET
                     defect_probability = EXCLUDED.defect_probability,
+                    monitor_verdict = EXCLUDED.monitor_verdict,
+                    params_out_of_range = EXCLUDED.params_out_of_range,
+                    params_compared = EXCLUDED.params_compared,
+                    params_total = EXCLUDED.params_total,
                     updated_at = EXCLUDED.updated_at
-        """, (id_part, id_die, int(id_client), id_machine, TARGET_DEFECTS[i], predictions[i], datetime.now(), datetime.now()))
+        """, (id_part, id_die, int(id_client), id_machine, TARGET_DEFECTS[i], predictions[i],
+              verdict, out_of_range, params_compared, params_total, datetime.now(), datetime.now()))
     return
 
 def _as_float(value):
