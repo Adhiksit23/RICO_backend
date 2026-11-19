@@ -400,52 +400,77 @@ def fetch_part_defect_comparisons(
             if parts:
                 part_ids = [r[0] for r in parts]
 
-                # Check available columns in rico.part_quality safely (without altering DB)
+                # 1. Fetch actual recorded shop-floor defects from rico.part_quality
+                cur.execute(
+                    """
+                    SELECT id_part, defect_type
+                    FROM rico.part_quality
+                    WHERE id_part = ANY(%s);
+                    """,
+                    (part_ids,),
+                )
+                actual_defects_map: Dict[str, List[str]] = {}
+                for pid, dtype in cur.fetchall():
+                    actual_defects_map.setdefault(pid, []).append((dtype or "").lower())
+
+                # 2. Fetch AI defect predictions AND Parameter Health columns from rico.part_quality_prediction
                 cur.execute(
                     "SELECT column_name FROM information_schema.columns "
-                    "WHERE table_schema = 'rico' AND table_name = 'part_quality';"
+                    "WHERE table_schema = 'rico' AND table_name = 'part_quality_prediction';"
                 )
-                pq_col_names = {row[0].lower() for row in cur.fetchall()}
+                pqp_col_names = {row[0].lower() for row in cur.fetchall()}
 
-                mv_expr = "monitor_verdict" if "monitor_verdict" in pq_col_names else "NULL as monitor_verdict"
-                oor_expr = "params_out_of_range" if "params_out_of_range" in pq_col_names else "0 as params_out_of_range"
-                pc_expr = "params_compared" if "params_compared" in pq_col_names else "0 as params_compared"
-                pt_expr = "params_total" if "params_total" in pq_col_names else "0 as params_total"
+                pqp_mv_expr = "monitor_verdict" if "monitor_verdict" in pqp_col_names else "NULL as monitor_verdict"
+                pqp_oor_expr = "params_out_of_range" if "params_out_of_range" in pqp_col_names else "0 as params_out_of_range"
+                pqp_pc_expr = "params_compared" if "params_compared" in pqp_col_names else "0 as params_compared"
+                pqp_pt_expr = "params_total" if "params_total" in pqp_col_names else "0 as params_total"
 
                 cur.execute(
                     f"""
                     SELECT
                         id_part,
                         defect_type,
-                        {mv_expr},
-                        {oor_expr},
-                        {pc_expr},
-                        {pt_expr}
-                    FROM rico.part_quality
-                    WHERE id_part = ANY(%s);
-                    """,
-                    (part_ids,),
-                )
-                pq_map: Dict[str, List[str]] = {}
-                for pid, dtype in cur.fetchall():
-                    pq_map.setdefault(pid, []).append(dtype)
-
-                cur.execute(
-                    """
-                    SELECT id_part, defect_type, defect_probability,
-                           monitor_verdict, params_out_of_range, params_compared, params_total
-                    FROM rico.part_quality_prediction
+                        defect_probability,
+                        {pqp_mv_expr},
+                        {pqp_oor_expr},
+                        {pqp_pc_expr},
+                        {pqp_pt_expr}
+                    FROM rico.part_quality_prediction 
                     WHERE id_part = ANY(%s);
                     """,
                     (part_ids,),
                 )
                 pred_map: Dict[str, Dict[str, float]] = {}
-                monitor_map: Dict[str, tuple] = {}
-                for pid, dtype, prob, mv, pct_oor, pc, pt in cur.fetchall():
+                pqp_oor_map: Dict[str, Dict[str, Any]] = {}
+                for row in cur.fetchall():
+                    pid = row[0]
+                    dtype = (row[1] or "").lower()
+                    prob = float(row[2]) if row[2] is not None else 0.0
+                    mv_val = str(row[3] or "").strip().upper()
+                    oor_val = int(row[4] or 0)
+                    compared_val = int(row[5] or 0)
+                    total_val = int(row[6] or 0)
+
                     if pid not in pred_map:
                         pred_map[pid] = {}
-                        monitor_map[pid] = (mv, pct_oor, pc, pt)
-                    pred_map[pid][(dtype or "").lower()] = float(prob) if prob is not None else 0.0
+                    pred_map[pid][dtype] = prob
+
+                    if pid not in pqp_oor_map:
+                        pqp_oor_map[pid] = {
+                            "monitor_verdict": mv_val,
+                            "params_out_of_range": oor_val,
+                            "params_compared": compared_val,
+                            "params_total": total_val,
+                        }
+                    else:
+                        if mv_val and not pqp_oor_map[pid]["monitor_verdict"]:
+                            pqp_oor_map[pid]["monitor_verdict"] = mv_val
+                        if oor_val and not pqp_oor_map[pid]["params_out_of_range"]:
+                            pqp_oor_map[pid]["params_out_of_range"] = oor_val
+                        if compared_val and not pqp_oor_map[pid]["params_compared"]:
+                            pqp_oor_map[pid]["params_compared"] = compared_val
+                        if total_val and not pqp_oor_map[pid]["params_total"]:
+                            pqp_oor_map[pid]["params_total"] = total_val
 
                 today_str = datetime.now(IST).strftime("%Y-%m-%d")
 
@@ -454,15 +479,9 @@ def fetch_part_defect_comparisons(
                     mfg_date = mfg_on.strftime("%Y-%m-%d") if hasattr(mfg_on, "strftime") else str(mfg_on)[:10]
                     mfg_time = mfg_on.strftime("%H:%M:%S") if hasattr(mfg_on, "strftime") else "00:00:00"
 
-                    pq_entries = pq_map.get(part_id, [])
-                    act_list = [entry.lower() for entry in pq_entries if entry]
+                    # Map actual recorded defects from rico.part_quality
+                    act_list = actual_defects_map.get(part_id, [])
                     has_actual_defect = len(act_list) > 0
-
-                    mv, pct_oor, pc, pt = monitor_map.get(part_id, ("", 0, 0, 0))
-                    part_oor       = int(pct_oor or 0)
-                    part_compared  = int(pc or 0)
-                    part_total     = int(pt or 0)
-                    part_mv        = str(mv or "").strip().upper()
 
                     def check_actual(name: str) -> str:
                         target = name.lower().replace("_", "")
@@ -478,6 +497,13 @@ def fetch_part_defect_comparisons(
                         crack=check_actual("crack"),
                         other="0",
                     )
+
+                    # --- Parameter Health & Out-of-Range values from rico.part_quality_prediction ---
+                    pqp_info = pqp_oor_map.get(part_id, {})
+                    part_oor = int(pqp_info.get("params_out_of_range") or 0)
+                    part_compared = int(pqp_info.get("params_compared") or 0)
+                    part_total = int(pqp_info.get("params_total") or 0)
+                    part_mv = str(pqp_info.get("monitor_verdict") or "").strip().upper()
 
                     # --- Predicted defect logic ---
                     # Threshold: 60% probability AND >= 4 parameters out of range
