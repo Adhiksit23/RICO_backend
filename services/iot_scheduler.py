@@ -23,7 +23,6 @@ from services.config import (
     IOT_SYNC_INCLUDE_LEGACY,
     IOT_SYNC_INTERVAL_SECONDS,
     IOT_LEGACY_SYNC_INTERVAL_SECONDS,
-    PREDICT_MONITOR_ENABLED,
 )
 
 logger = logging.getLogger(__name__)
