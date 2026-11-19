@@ -148,7 +148,7 @@ def run_iot_sync(trigger: str = "scheduler") -> dict[str, Any]:
         result["shot_sync_saved"] = len(saved)
         logger.info("[iot-sync] Shot sync completed (%s), saved %s parts", trigger, len(saved))
 
-        if saved and PREDICT_MONITOR_ENABLED: 
+        if saved:
             seen = set()
             for die, part_id in saved:
                 key = (die, part_id)

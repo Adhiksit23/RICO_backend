@@ -14,7 +14,7 @@ Rules:
   * each prediction row also stores the monitor verdict: the part's operating
     parameters are compared with the calibration tolerances of the same
     as-of-shot calibration used for the features (UI monitor page parameters
-    plus cycle_time). FAIL when more than 4 parameters are out of range.
+    plus cycle_time). FAIL when 4 or more parameters are out of range.
 
 Usage:
     python -m services.monthly_predict --date 2026-11-03
@@ -72,7 +72,7 @@ MONITOR_PARAMS = [
     "shot_fwd_time",
 ]
 
-# UI monitor page: REJECT only when out-of-range count is greater than 4.
+# Monitor verdict: FAIL when out-of-range count is 4 or more.
 MONITOR_FAIL_THRESHOLD = 4
 
 _MODEL_DATE_RE = re.compile(r"_(\d{8})_voting\.pkl$")
@@ -241,7 +241,7 @@ def _monitor_counts(part_values: dict, calibration: dict) -> tuple[str, int, int
         if not (lower <= value <= upper):
             out_of_range += 1
 
-    verdict = "FAIL" if out_of_range > MONITOR_FAIL_THRESHOLD else "PASS"
+    verdict = "FAIL" if out_of_range >= MONITOR_FAIL_THRESHOLD else "PASS"
     return verdict, out_of_range, compared, len(MONITOR_PARAMS)
 
 
