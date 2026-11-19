@@ -66,6 +66,7 @@ class PartDefectComparisonRow(BaseModel):
     manufactured_time: str
     part_serial: str
     customer_qr: str
+    status: str = ""                   # traceability status from rico.part.status
     prescription_id: str
     predicted: DefectPredictionMap
     recorded: DefectRecordedMap
@@ -95,6 +96,7 @@ class DefectAccuracyItem(BaseModel):
 class AccuracyPartAuditRow(BaseModel):
     part_serial: str
     customer_qr: str
+    status: str = ""                   # traceability status from rico.part.status
     prescription_id: str
     machine_id: str
     die_id: str
@@ -392,6 +394,7 @@ def fetch_part_defect_comparisons(
             )
             part_col_names = {row[0].lower() for row in cur.fetchall()}
             customer_qr_expr = "p.customer_qr" if "customer_qr" in part_col_names else "NULL as customer_qr"
+            status_expr = "p.status" if "status" in part_col_names else "NULL as status"
 
             query = f"""
                 SELECT 
@@ -400,7 +403,8 @@ def fetch_part_defect_comparisons(
                     COALESCE(m.name, p.id_machine::text, 'UBE 850T-2') as machine_name,
                     p.manufactored_on,
                     {customer_qr_expr},
-                    p.id_calibration_used
+                    p.id_calibration_used,
+                    {status_expr}
                 FROM rico.part p
                 LEFT JOIN rico.machine m ON p.id_machine::text = m.id_machine::text
                 LEFT JOIN rico.client c ON p.id_client = c.id_client
@@ -488,7 +492,7 @@ def fetch_part_defect_comparisons(
 
                 today_str = datetime.now(IST).strftime("%Y-%m-%d")
 
-                for part_id, die_id, machine_name, mfg_on, cust_qr, calib_used in parts:
+                for part_id, die_id, machine_name, mfg_on, cust_qr, calib_used, part_st in parts:
                     mfg_on = _to_ist(mfg_on)
                     mfg_date = mfg_on.strftime("%Y-%m-%d") if hasattr(mfg_on, "strftime") else str(mfg_on)[:10]
                     mfg_time = mfg_on.strftime("%H:%M:%S") if hasattr(mfg_on, "strftime") else "00:00:00"
@@ -548,6 +552,7 @@ def fetch_part_defect_comparisons(
                     )
 
                     customer_qr_val = str(cust_qr).strip() if cust_qr else ""
+                    status_val = str(part_st).strip() if part_st is not None else ""
                     prescription_id_val = str(calib_used).strip() if calib_used is not None else ""
 
                     records.append(
@@ -560,6 +565,7 @@ def fetch_part_defect_comparisons(
                             manufactured_time=mfg_time,
                             part_serial=str(part_id),
                             customer_qr=customer_qr_val,
+                            status=status_val,
                             prescription_id=prescription_id_val,
                             predicted=predicted_data,
                             recorded=recorded_data,
@@ -620,6 +626,7 @@ def fetch_part_defect_comparisons(
                     manufactured_time=(now_time - timedelta(minutes=i * 2)).strftime("%H:%M:%S"),
                     part_serial=serial,
                     customer_qr="",
+                    status="Received",
                     prescription_id="75",
                     predicted=pred_map_fb,
                     recorded=rec_map_fb,
@@ -690,6 +697,7 @@ def compute_prediction_accuracy(
                     AccuracyPartAuditRow(
                         part_serial=r.part_serial,
                         customer_qr=r.customer_qr,
+                        status=r.status,
                         prescription_id=r.prescription_id,
                         machine_id=r.machine_id,
                         die_id=r.die_id,
@@ -901,29 +909,29 @@ def generate_report_excel_workbook(
     ws2.views.sheetView[0].showGridLines = True
 
     # Tier 1 Header
-    ws2.merge_cells("A1:I1")
+    ws2.merge_cells("A1:J1")
     ws2["A1"] = "Identification"
     ws2["A1"].fill = fill_id_header
     ws2["A1"].font = font_top_header
     ws2["A1"].alignment = align_center
 
-    ws2.merge_cells("J1:L1")
-    ws2["J1"] = "Parameter Health (OOR)"
-    ws2["J1"].fill = fill_oor_header
-    ws2["J1"].font = font_top_header
-    ws2["J1"].alignment = align_center
+    ws2.merge_cells("K1:M1")
+    ws2["K1"] = "Parameter Health (OOR)"
+    ws2["K1"].fill = fill_oor_header
+    ws2["K1"].font = font_top_header
+    ws2["K1"].alignment = align_center
 
-    ws2.merge_cells("M1:S1")
-    ws2["M1"] = "Predicted (Defects)"
-    ws2["M1"].fill = fill_pred_header
-    ws2["M1"].font = font_top_header
-    ws2["M1"].alignment = align_center
+    ws2.merge_cells("N1:T1")
+    ws2["N1"] = "Predicted (Defects)"
+    ws2["N1"].fill = fill_pred_header
+    ws2["N1"].font = font_top_header
+    ws2["N1"].alignment = align_center
 
-    ws2.merge_cells("T1:AA1")
-    ws2["T1"] = "Recorded (Defects)"
-    ws2["T1"].fill = fill_rec_header
-    ws2["T1"].font = font_top_header
-    ws2["T1"].alignment = align_center
+    ws2.merge_cells("U1:AB1")
+    ws2["U1"] = "Recorded (Defects)"
+    ws2["U1"].fill = fill_rec_header
+    ws2["U1"].font = font_top_header
+    ws2["U1"].alignment = align_center
 
     # Tier 2 Header
     headers_defect_comparison = [
@@ -935,6 +943,7 @@ def generate_report_excel_workbook(
         "Manufactured Time",
         "Part Serial",
         "Customer QR",
+        "Status",
         "Prescription ID",
         # Parameter Health (OOR)
         "Monitor Verdict",
@@ -962,11 +971,11 @@ def generate_report_excel_workbook(
     for col_idx, h_text in enumerate(headers_defect_comparison, 1):
         cell = ws2.cell(row=2, column=col_idx, value=h_text)
         cell.font = font_sub_header
-        if col_idx <= 9:
+        if col_idx <= 10:
             cell.fill = fill_id_header
-        elif col_idx <= 12:
+        elif col_idx <= 13:
             cell.fill = fill_oor_header
-        elif col_idx <= 19:
+        elif col_idx <= 20:
             cell.fill = fill_pred_header
         else:
             cell.fill = fill_rec_header
@@ -990,6 +999,7 @@ def generate_report_excel_workbook(
             b.manufactured_time,
             b.part_serial,
             b.customer_qr,
+            b.status or "-",
             b.prescription_id,
             # Parameter Health
             b.monitor_verdict or "-",
@@ -1016,7 +1026,7 @@ def generate_report_excel_workbook(
 
         for col_idx, val in enumerate(row_vals, 1):
             cell = ws2.cell(row=current_row, column=col_idx, value=val)
-            cell.font = font_data_bold if col_idx in [4, 7, 10, 13, 20] else font_data
+            cell.font = font_data_bold if col_idx in [4, 7, 9, 11, 14, 21] else font_data
             cell.alignment = align_center
             cell.border = thin_border
             if current_row % 2 == 0:
@@ -1027,24 +1037,39 @@ def generate_report_excel_workbook(
     fn_cell2 = ws2.cell(row=current_row + 1, column=1, value="Responsible: Neuriot labs")
     fn_cell2.font = Font(name=font_family, size=9, italic=True, bold=True, color="555555")
 
-    # Column Widths
-    for c_idx in range(1, len(headers_defect_comparison) + 1):
-        col_letter = get_column_letter(c_idx)
-        if c_idx in [7, 8]:
-            ws2.column_dimensions[col_letter].width = 20
-        elif c_idx in [5, 6, 9, 12]:
-            ws2.column_dimensions[col_letter].width = 22
-        elif c_idx in [10, 11]:
-            ws2.column_dimensions[col_letter].width = 16
-        else:
-            ws2.column_dimensions[col_letter].width = 12
-        col_letter = get_column_letter(c_idx)
-        if c_idx in [7, 8]:
-            ws2.column_dimensions[col_letter].width = 20
-        elif c_idx in [5, 6, 9]:
-            ws2.column_dimensions[col_letter].width = 16
-        else:
-            ws2.column_dimensions[col_letter].width = 12
+    # Column Widths for Sheet 2 (Predicted vs Actual)
+    col_widths_s2 = {
+        1: 16,   # Source ("Neuriot labs")
+        2: 14,   # Today's Date
+        3: 16,   # Machine ID
+        4: 10,   # Die ID
+        5: 18,   # Manufactured Date
+        6: 16,   # Manufactured Time
+        7: 20,   # Part Serial
+        8: 24,   # Customer QR
+        9: 16,   # Status (Traceability)
+        10: 18,  # Prescription ID
+        11: 16,  # Monitor Verdict
+        12: 18,  # OOR / Compared
+        13: 26,  # OOR Status (≥4 Rule)
+        14: 12,  # OK (Predicted)
+        15: 14,  # Blow Hole
+        16: 14,  # Non-filling
+        17: 14,  # Porosity
+        18: 14,  # Shrinkage
+        19: 14,  # Chip-off
+        20: 14,  # Crack
+        21: 12,  # OK (Recorded)
+        22: 14,  # Blow Hole
+        23: 14,  # Non-filling
+        24: 14,  # Porosity
+        25: 14,  # Shrinkage
+        26: 14,  # Chip-off
+        27: 14,  # Crack
+        28: 12,  # Other
+    }
+    for c_idx, w in col_widths_s2.items():
+        ws2.column_dimensions[get_column_letter(c_idx)].width = w
 
     # =========================================================================
     # SHEET 3: Prediction Accuracy
@@ -1062,27 +1087,27 @@ def generate_report_excel_workbook(
     font_kpi_val = Font(name=font_family, size=11, bold=True, color="1F4E79")
 
     # Banner Title
-    ws3.merge_cells("A1:K1")
+    ws3.merge_cells("A1:L1")
     ws3["A1"] = "NEURIOT LABS - PREDICTION ACCURACY REPORT"
     ws3["A1"].fill = fill_id_header
     ws3["A1"].font = font_top_header
     ws3["A1"].alignment = align_center
 
-    ws3.merge_cells("A2:K2")
+    ws3.merge_cells("A2:L2")
     ws3["A2"] = (
         f"Die: {die or 'All'} | Machine: {machine or 'All'} | Period: {period.upper()} | "
-        f"Target: 6 Defect Types (Evaluated after 3 days of shop floor inspection)"
+        f"Target: 6 Defect Types (Dual Gate: Prob > 60% & OOR >= 4 | Evaluated after 3 days)"
     )
     ws3["A2"].fill = PatternFill(start_color="203764", end_color="203764", fill_type="solid")
     ws3["A2"].font = Font(name=font_family, size=9, italic=True, color="D9E1F2")
     ws3["A2"].alignment = align_center
 
-    # KPI Summary Cards Block (Rows 4-5)
+    # KPI Summary Cards Block (Rows 4-5) - spans all 12 columns (3 cols each)
     kpis = [
-        ("Overall Prediction Accuracy", f"{accuracy_report.overall_accuracy_pct}%", "A4:B4", "A5:B5"),
-        ("Total Sample (Predicted Defects)", str(accuracy_report.sample_size), "C4:D4", "C5:D5"),
-        ("Confirmed Defects (Gains)", str(accuracy_report.total_gains), "E4:F4", "E5:F5"),
-        ("False Alarms (Losses)", str(accuracy_report.total_losses), "G4:H4", "G5:H5"),
+        ("Overall Prediction Accuracy", f"{accuracy_report.overall_accuracy_pct}%", "A4:C4", "A5:C5"),
+        ("Total Sample (Predicted Defects)", str(accuracy_report.sample_size), "D4:F4", "D5:F5"),
+        ("Confirmed Defects (Gains)", str(accuracy_report.total_gains), "G4:I4", "G5:I5"),
+        ("False Alarms (Losses)", str(accuracy_report.total_losses), "J4:L4", "J5:L5"),
     ]
     for label, val, lbl_range, val_range in kpis:
         ws3.merge_cells(lbl_range)
@@ -1152,7 +1177,7 @@ def generate_report_excel_workbook(
     r_idx += 2
 
     # Table 2: Part-Level Gain / Loss Audit Log
-    ws3.merge_cells(f"A{r_idx}:K{r_idx}")
+    ws3.merge_cells(f"A{r_idx}:L{r_idx}")
     ws3[f"A{r_idx}"] = "Predicted Defects Audit Log (Gains & Losses Detail)"
     ws3[f"A{r_idx}"].fill = fill_pred_header
     ws3[f"A{r_idx}"].font = font_top_header
@@ -1162,6 +1187,7 @@ def generate_report_excel_workbook(
     audit_headers = [
         "Part Serial",
         "Customer QR",
+        "Status",
         "Prescription ID",
         "Machine ID",
         "Die ID",
@@ -1183,16 +1209,17 @@ def generate_report_excel_workbook(
     for row_item in accuracy_report.audit_rows:
         ws3.cell(row=r_idx, column=1, value=row_item.part_serial).alignment = align_center
         ws3.cell(row=r_idx, column=2, value=row_item.customer_qr).alignment = align_center
-        ws3.cell(row=r_idx, column=3, value=row_item.prescription_id).alignment = align_center
-        ws3.cell(row=r_idx, column=4, value=row_item.machine_id).alignment = align_center
-        ws3.cell(row=r_idx, column=5, value=row_item.die_id).alignment = align_center
-        ws3.cell(row=r_idx, column=6, value=row_item.manufactured_date).alignment = align_center
-        ws3.cell(row=r_idx, column=7, value=row_item.manufactured_time).alignment = align_center
-        ws3.cell(row=r_idx, column=8, value=row_item.defect_type).alignment = align_left
-        ws3.cell(row=r_idx, column=9, value=row_item.predicted_label).alignment = align_center
-        ws3.cell(row=r_idx, column=10, value=row_item.recorded_label).alignment = align_center
+        ws3.cell(row=r_idx, column=3, value=row_item.status or "-").alignment = align_center
+        ws3.cell(row=r_idx, column=4, value=row_item.prescription_id).alignment = align_center
+        ws3.cell(row=r_idx, column=5, value=row_item.machine_id).alignment = align_center
+        ws3.cell(row=r_idx, column=6, value=row_item.die_id).alignment = align_center
+        ws3.cell(row=r_idx, column=7, value=row_item.manufactured_date).alignment = align_center
+        ws3.cell(row=r_idx, column=8, value=row_item.manufactured_time).alignment = align_center
+        ws3.cell(row=r_idx, column=9, value=row_item.defect_type).alignment = align_left
+        ws3.cell(row=r_idx, column=10, value=row_item.predicted_label).alignment = align_center
+        ws3.cell(row=r_idx, column=11, value=row_item.recorded_label).alignment = align_center
 
-        outcome_cell = ws3.cell(row=r_idx, column=11, value=row_item.outcome)
+        outcome_cell = ws3.cell(row=r_idx, column=12, value=row_item.outcome)
         outcome_cell.alignment = align_center
         if row_item.outcome == "GAIN":
             outcome_cell.fill = fill_gain
@@ -1201,9 +1228,9 @@ def generate_report_excel_workbook(
             outcome_cell.fill = fill_loss
             outcome_cell.font = font_loss
 
-        for c in range(1, 11):
+        for c in range(1, 12):
             cell = ws3.cell(row=r_idx, column=c)
-            cell.font = font_data_bold if c in [1, 8] else font_data
+            cell.font = font_data_bold if c in [1, 9] else font_data
             cell.border = thin_border
             if r_idx % 2 == 0:
                 cell.fill = fill_zebra
@@ -1220,19 +1247,20 @@ def generate_report_excel_workbook(
     )
     fn_note.font = Font(name=font_family, size=8, italic=True, color="777777")
 
-    # Column Widths for Sheet 3
+    # Column Widths for Sheet 3 (Prediction Accuracy)
     col_widths_s3 = {
         1: 20,   # Part Serial
-        2: 18,   # Customer QR
-        3: 16,   # Prescription ID
-        4: 16,   # Machine ID
-        5: 12,   # Die ID
-        6: 18,   # Mfg Date
-        7: 18,   # Mfg Time
-        8: 16,   # Defect Type
-        9: 18,   # Predicted Flag
-        10: 18,  # Actual Recorded
-        11: 16,  # Outcome
+        2: 24,   # Customer QR
+        3: 16,   # Status (Traceability)
+        4: 18,   # Prescription ID
+        5: 16,   # Machine ID
+        6: 12,   # Die ID
+        7: 18,   # Manufactured Date
+        8: 16,   # Manufactured Time
+        9: 18,   # Defect Type
+        10: 18,  # Predicted Flag
+        11: 18,  # Actual Recorded
+        12: 16,  # Outcome (GAIN / LOSS)
     }
     for c_idx, w in col_widths_s3.items():
         ws3.column_dimensions[get_column_letter(c_idx)].width = w

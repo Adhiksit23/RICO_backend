@@ -92,10 +92,19 @@ def export_report_excel(
     limit: Optional[int] = Query(None, ge=1, description="Max parts to export (default: all matching rows)"),
 ):
     """
-    Generate and stream a 3-sheet Excel spreadsheet (.xlsx):
-      - Sheet 1: Prescription history
-      - Sheet 2: Predicted vs Actual
-      - Sheet 3: Prediction Accuracy
+    Generate and stream a production-grade 3-sheet Excel spreadsheet (.xlsx):
+      - Sheet 1: 'Prescription history'
+          * Machine ID, Die ID, Prescription ID, Date Provided
+          * Min, Mean, Max for each calibrated casting parameter (Velocity, Pressures, Positions, Temperatures)
+      - Sheet 2: 'Predicted vs Actual'
+          * Identification: Source, Today's Date, Machine ID, Die ID, Mfg Date, Mfg Time, Part Serial, Customer QR, Status (Traceability), Prescription ID
+          * Parameter Health: Monitor Verdict, OOR / Compared, OOR Status (≥4 Rule)
+          * Predicted (Defects): Dual-gate verdict (Prob > 60% AND OOR >= 4), Blow Hole, Non-filling, Porosity, Shrinkage, Chip-off, Crack
+          * Recorded (Defects): Shop-floor inspection records (OK, Blow Hole, Non-filling, Porosity, Shrinkage, Chip-off, Crack, Other)
+      - Sheet 3: 'Prediction Accuracy'
+          * Summary KPI Cards (Overall Accuracy %, Total Sample, Gains, Losses)
+          * Defect Type Breakdown Table with accuracy rates per defect category
+          * Detailed Part-Level Audit Log detailing serial, customer QR, status, predicted vs recorded labels, and GAIN/LOSS outcome
     """
     c = _clean_str(client, "All")
     m = _clean_str(machine, "All")
