@@ -371,13 +371,21 @@ def fetch_part_defect_comparisons(
             where_str = f"WHERE {' AND '.join(conditions)}"
             limit_str = f"LIMIT {int(limit)}" if limit is not None else ""
 
+            # Check available columns in rico.part safely (without altering DB)
+            cur.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = 'rico' AND table_name = 'part';"
+            )
+            part_col_names = {row[0].lower() for row in cur.fetchall()}
+            customer_qr_expr = "p.customer_qr" if "customer_qr" in part_col_names else "NULL as customer_qr"
+
             query = f"""
                 SELECT 
                     p.id_part,
                     p.id_die,
                     COALESCE(m.name, p.id_machine::text, 'UBE 850T-2') as machine_name,
                     p.manufactored_on,
-                    p.customer_qr,
+                    {customer_qr_expr},
                     p.id_calibration_used
                 FROM rico.part p
                 LEFT JOIN rico.machine m ON p.id_machine::text = m.id_machine::text
@@ -391,9 +399,28 @@ def fetch_part_defect_comparisons(
 
             if parts:
                 part_ids = [r[0] for r in parts]
+
+                # Check available columns in rico.part_quality safely (without altering DB)
                 cur.execute(
-                    """
-                    SELECT id_part, defect_type
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'rico' AND table_name = 'part_quality';"
+                )
+                pq_col_names = {row[0].lower() for row in cur.fetchall()}
+
+                mv_expr = "monitor_verdict" if "monitor_verdict" in pq_col_names else "NULL as monitor_verdict"
+                oor_expr = "params_out_of_range" if "params_out_of_range" in pq_col_names else "0 as params_out_of_range"
+                pc_expr = "params_compared" if "params_compared" in pq_col_names else "0 as params_compared"
+                pt_expr = "params_total" if "params_total" in pq_col_names else "0 as params_total"
+
+                cur.execute(
+                    f"""
+                    SELECT
+                        id_part,
+                        defect_type,
+                        {mv_expr},
+                        {oor_expr},
+                        {pc_expr},
+                        {pt_expr}
                     FROM rico.part_quality
                     WHERE id_part = ANY(%s);
                     """,
