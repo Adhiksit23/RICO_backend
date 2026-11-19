@@ -66,6 +66,7 @@ class PartDefectComparisonRow(BaseModel):
     manufactured_time: str
     part_serial: str
     customer_qr: str
+    status: str = ""                   # traceability status from rico.part.status
     prescription_id: str
     predicted: DefectPredictionMap
     recorded: DefectRecordedMap
@@ -95,6 +96,7 @@ class DefectAccuracyItem(BaseModel):
 class AccuracyPartAuditRow(BaseModel):
     part_serial: str
     customer_qr: str
+    status: str = ""                   # traceability status from rico.part.status
     prescription_id: str
     machine_id: str
     die_id: str
@@ -392,6 +394,7 @@ def fetch_part_defect_comparisons(
             )
             part_col_names = {row[0].lower() for row in cur.fetchall()}
             customer_qr_expr = "p.customer_qr" if "customer_qr" in part_col_names else "NULL as customer_qr"
+            status_expr = "p.status" if "status" in part_col_names else "NULL as status"
 
             query = f"""
                 SELECT 
@@ -400,7 +403,8 @@ def fetch_part_defect_comparisons(
                     COALESCE(m.name, p.id_machine::text, 'UBE 850T-2') as machine_name,
                     p.manufactored_on,
                     {customer_qr_expr},
-                    p.id_calibration_used
+                    p.id_calibration_used,
+                    {status_expr}
                 FROM rico.part p
                 LEFT JOIN rico.machine m ON p.id_machine::text = m.id_machine::text
                 LEFT JOIN rico.client c ON p.id_client = c.id_client
@@ -488,7 +492,7 @@ def fetch_part_defect_comparisons(
 
                 today_str = datetime.now(IST).strftime("%Y-%m-%d")
 
-                for part_id, die_id, machine_name, mfg_on, cust_qr, calib_used in parts:
+                for part_id, die_id, machine_name, mfg_on, cust_qr, calib_used, part_st in parts:
                     mfg_on = _to_ist(mfg_on)
                     mfg_date = mfg_on.strftime("%Y-%m-%d") if hasattr(mfg_on, "strftime") else str(mfg_on)[:10]
                     mfg_time = mfg_on.strftime("%H:%M:%S") if hasattr(mfg_on, "strftime") else "00:00:00"
@@ -549,6 +553,7 @@ def fetch_part_defect_comparisons(
                     )
 
                     customer_qr_val = str(cust_qr).strip() if cust_qr else ""
+                    status_val = str(part_st).strip() if part_st is not None else ""
                     prescription_id_val = str(calib_used).strip() if calib_used is not None else ""
 
                     records.append(
@@ -561,6 +566,7 @@ def fetch_part_defect_comparisons(
                             manufactured_time=mfg_time,
                             part_serial=str(part_id),
                             customer_qr=customer_qr_val,
+                            status=status_val,
                             prescription_id=prescription_id_val,
                             predicted=predicted_data,
                             recorded=recorded_data,
@@ -621,6 +627,7 @@ def fetch_part_defect_comparisons(
                     manufactured_time=(now_time - timedelta(minutes=i * 2)).strftime("%H:%M:%S"),
                     part_serial=serial,
                     customer_qr="",
+                    status="Received",
                     prescription_id="75",
                     predicted=pred_map_fb,
                     recorded=rec_map_fb,
@@ -691,6 +698,7 @@ def compute_prediction_accuracy(
                     AccuracyPartAuditRow(
                         part_serial=r.part_serial,
                         customer_qr=r.customer_qr,
+                        status=r.status,
                         prescription_id=r.prescription_id,
                         machine_id=r.machine_id,
                         die_id=r.die_id,
