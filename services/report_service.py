@@ -69,6 +69,11 @@ class PartDefectComparisonRow(BaseModel):
     prescription_id: str
     predicted: DefectPredictionMap
     recorded: DefectRecordedMap
+    # OOR (out-of-range parameter) data from rico.part_quality
+    monitor_verdict: str = ""          # e.g. "PASS" / "FAIL" from monitor_verdict column
+    params_out_of_range: int = 0       # number of parameters outside calibrated range
+    params_compared: int = 0           # number of parameters actually compared
+    params_total: int = 0              # total parameters in the shot
 
 
 class ReportSummary(BaseModel):
@@ -386,18 +391,25 @@ def fetch_part_defect_comparisons(
 
             if parts:
                 part_ids = [r[0] for r in parts]
-                # Fetch actual recorded defects
+                # Fetch actual recorded defects + new OOR monitoring columns
                 cur.execute(
                     """
-                    SELECT id_part, defect_type 
-                    FROM rico.part_quality 
+                    SELECT
+                        id_part,
+                        defect_type,
+                        monitor_verdict,
+                        params_out_of_range,
+                        params_compared,
+                        params_total
+                    FROM rico.part_quality
                     WHERE id_part = ANY(%s);
                     """,
                     (part_ids,),
                 )
-                actual_defects_map: Dict[str, List[str]] = {}
-                for pid, dtype in cur.fetchall():
-                    actual_defects_map.setdefault(pid, []).append(dtype.lower() if dtype else "")
+                # pq_map: part_id -> list of (defect_type, monitor_verdict, params_oor, params_compared, params_total)
+                pq_map: Dict[str, List[tuple]] = {}
+                for pid, dtype, mv, pct_oor, pc, pt in cur.fetchall():
+                    pq_map.setdefault(pid, []).append((dtype, mv, pct_oor, pc, pt))
 
                 # Fetch AI predictions
                 cur.execute(
@@ -421,9 +433,16 @@ def fetch_part_defect_comparisons(
                     mfg_date = mfg_on.strftime("%Y-%m-%d") if hasattr(mfg_on, "strftime") else str(mfg_on)[:10]
                     mfg_time = mfg_on.strftime("%H:%M:%S") if hasattr(mfg_on, "strftime") else "00:00:00"
 
-                    # Map actual recorded defects
-                    act_list = actual_defects_map.get(part_id, [])
+                    # --- OOR data from part_quality rows (same values across all rows for a part) ---
+                    pq_entries = pq_map.get(part_id, [])
+                    act_list = [entry[0].lower() for entry in pq_entries if entry[0]]
                     has_actual_defect = len(act_list) > 0
+
+                    # Take OOR fields from the first row (they are part-level, not defect-level)
+                    part_oor       = int(pq_entries[0][2] or 0) if pq_entries else 0
+                    part_compared  = int(pq_entries[0][3] or 0) if pq_entries else 0
+                    part_total     = int(pq_entries[0][4] or 0) if pq_entries else 0
+                    part_mv        = str(pq_entries[0][1] or "").strip().upper() if pq_entries else ""
 
                     def check_actual(name: str) -> str:
                         target = name.lower().replace("_", "")
@@ -440,18 +459,27 @@ def fetch_part_defect_comparisons(
                         other="0",
                     )
 
-                    # Map predicted defects
+                    # --- Predicted defect logic ---
+                    # Threshold: 60% probability AND >= 4 parameters out of range
+                    # Both conditions must be met for the overall part to be called DEFECT.
+                    DEFECT_PROB_THRESHOLD = 0.60
+                    OOR_GATE = 4
+
                     preds = pred_map.get(part_id, {})
-                    has_predicted_defect = any(p > 0.5 for p in preds.values())
+                    any_high_prob = any(p > DEFECT_PROB_THRESHOLD for p in preds.values())
+                    gates_passed = any_high_prob and (part_oor >= OOR_GATE)
 
                     def format_pred(name: str) -> str:
+                        """Show probability if above threshold, regardless of OOR gate
+                        (informational). Overall DEFECT verdict uses the dual gate."""
                         p_val = preds.get(name.lower(), 0.0)
-                        if p_val > 0.5:
+                        if p_val > DEFECT_PROB_THRESHOLD:
                             return f"1 ({int(p_val * 100)}%)"
                         return "0"
 
                     predicted_data = DefectPredictionMap(
-                        ok="DEFECT" if has_predicted_defect else "OK",
+                        # Overall verdict requires BOTH: prob > 60% AND params_oor >= 4
+                        ok="DEFECT" if gates_passed else "OK",
                         blow_hole=format_pred("blow_hole"),
                         non_filling=format_pred("non_filling"),
                         porosity=format_pred("porosity"),
@@ -460,7 +488,6 @@ def fetch_part_defect_comparisons(
                         crack=format_pred("crack"),
                     )
 
-                    # customer_qr is blank if not assigned yet; prescription_id comes from id_calibration_used
                     customer_qr_val = str(cust_qr).strip() if cust_qr else ""
                     prescription_id_val = str(calib_used).strip() if calib_used is not None else ""
 
@@ -477,6 +504,10 @@ def fetch_part_defect_comparisons(
                             prescription_id=prescription_id_val,
                             predicted=predicted_data,
                             recorded=recorded_data,
+                            monitor_verdict=part_mv,
+                            params_out_of_range=part_oor,
+                            params_compared=part_compared,
+                            params_total=part_total,
                         )
                     )
 
@@ -487,33 +518,38 @@ def fetch_part_defect_comparisons(
             if conn:
                 conn.close()
 
-    # Fallback sample rows if DB is empty / offline — matches real RICO reference sample
+    # Fallback sample rows if DB is empty / offline — reflects new dual-gate logic (60% + >=4 OOR)
     if not records:
         today_str = datetime.now(IST).strftime("%Y-%m-%d")
         now_time = datetime.now(IST)
+        # (serial, pred_type, rec_type, monitor_verdict, params_oor)
+        # Dual gate: predicted DEFECT only when pred_type set AND params_oor >= 4
         sample_configs = [
-            ("1104135924619", False, None, None),
-            ("1104135824618", True, "blow_hole", "blow_hole"),      # Confirmed GAIN
-            ("1104135724617", False, None, None),
-            ("1104135524616", True, "non_filling", "non_filling"),  # Confirmed GAIN
-            ("1104135424615", False, None, None),
-            ("1104135324614", True, "porosity", None),              # False alarm LOSS (predicted porosity, but part was OK)
+            ("1104135924619", None,          None,          "PASS", 1),   # OK — low OOR
+            ("1104135824618", "blow_hole",    "blow_hole",   "FAIL", 5),   # GAIN — both gates pass
+            ("1104135724617", None,          None,          "PASS", 2),   # OK — low OOR
+            ("1104135524616", "non_filling", "non_filling", "FAIL", 6),   # GAIN — both gates pass
+            ("1104135424615", None,          None,          "PASS", 3),   # OK — below OOR threshold
+            ("1104135324614", "porosity",    None,          "PASS", 2),   # LOSS — high prob but OOR < 4, so not flagged DEFECT
         ]
-        for i, (serial, is_def, pred_type, rec_type) in enumerate(sample_configs):
-            pred_map = DefectPredictionMap(ok="DEFECT" if is_def else "OK")
-            rec_map = DefectRecordedMap(ok="DEFECT" if rec_type else "OK")
+        for i, (serial, pred_type, rec_type, mv, oor) in enumerate(sample_configs):
+            # Dual gate: overall DEFECT only when both prob > 60% AND params_oor >= 4
+            is_def_predicted = pred_type is not None and oor >= 4
+
+            pred_map_fb = DefectPredictionMap(ok="DEFECT" if is_def_predicted else "OK")
+            rec_map_fb = DefectRecordedMap(ok="DEFECT" if rec_type else "OK")
 
             if pred_type == "blow_hole":
-                pred_map.blow_hole = "1 (82%)"
+                pred_map_fb.blow_hole = "1 (82%)"
             elif pred_type == "non_filling":
-                pred_map.non_filling = "1 (74%)"
+                pred_map_fb.non_filling = "1 (74%)"
             elif pred_type == "porosity":
-                pred_map.porosity = "1 (68%)"
+                pred_map_fb.porosity = "1 (68%)"
 
             if rec_type == "blow_hole":
-                rec_map.blow_hole = "1"
+                rec_map_fb.blow_hole = "1"
             elif rec_type == "non_filling":
-                rec_map.non_filling = "1"
+                rec_map_fb.non_filling = "1"
 
             records.append(
                 PartDefectComparisonRow(
@@ -524,10 +560,14 @@ def fetch_part_defect_comparisons(
                     manufactured_date=today_str,
                     manufactured_time=(now_time - timedelta(minutes=i * 2)).strftime("%H:%M:%S"),
                     part_serial=serial,
-                    customer_qr="",  # Blank as not assigned yet by RICO
-                    prescription_id="75",  # id_calibration_used from reference sample
-                    predicted=pred_map,
-                    recorded=rec_map,
+                    customer_qr="",
+                    prescription_id="75",
+                    predicted=pred_map_fb,
+                    recorded=rec_map_fb,
+                    monitor_verdict=mv,
+                    params_out_of_range=oor,
+                    params_compared=23,
+                    params_total=23,
                 )
             )
 
@@ -538,11 +578,16 @@ def compute_prediction_accuracy(
     part_defect_records: List[PartDefectComparisonRow],
 ) -> PredictionAccuracyReport:
     """
-    Calculate prediction accuracy across the target 6 defect types:
-      - GAIN: Predicted defect of type T and actual defect of type T confirmed.
-      - LOSS: Predicted defect of type T, but no defect of type T recorded.
-      - IGNORED: Predicted no defect and actual defect occurred (do nothing).
-      - Sample: All predicted defects of the 6 types.
+    Calculate prediction accuracy across the target 6 defect types.
+
+    A per-defect prediction only counts toward the sample when the OVERALL part
+    was flagged DEFECT — i.e. the dual gate was satisfied (prob > 60% AND
+    params_out_of_range >= 4).  This keeps the accuracy metric consistent with
+    the defect verdict shown in the UI.
+
+      - GAIN: overall verdict == DEFECT AND defect of type T was recorded.
+      - LOSS: overall verdict == DEFECT AND defect of type T was NOT recorded.
+      - IGNORED: overall verdict == OK (dual gate not met), regardless of recording.
     """
     defect_fields = [
         ("blow_hole", "Blow Hole"),
@@ -560,6 +605,10 @@ def compute_prediction_accuracy(
     audit_rows: List[AccuracyPartAuditRow] = []
 
     for r in part_defect_records:
+        # Only consider this part if the dual gate was passed (overall == DEFECT)
+        if str(r.predicted.ok).strip().upper() != "DEFECT":
+            continue
+
         for field, label in defect_fields:
             p_val = getattr(r.predicted, field, "0")
             r_val = getattr(r.recorded, field, "0")
@@ -567,7 +616,7 @@ def compute_prediction_accuracy(
             p_str = str(p_val).strip()
             r_str = str(r_val).strip()
 
-            # Check if defect of this type was predicted
+            # Count this defect type if it was individually flagged (prob > 60%)
             if p_str.startswith("1"):
                 counts[label]["predicted"] += 1
                 is_gain = r_str.startswith("1")
@@ -714,6 +763,7 @@ def generate_report_excel_workbook(
 
     fill_id_header = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid") # Dark Navy Blue
     fill_presc_header = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid") # Blue Accent
+    fill_oor_header = PatternFill(start_color="B25900", end_color="B25900", fill_type="solid") # Amber / Orange Accent
     fill_pred_header = PatternFill(start_color="7030A0", end_color="7030A0", fill_type="solid") # Purple Accent
     fill_rec_header = PatternFill(start_color="C65911", end_color="C65911", fill_type="solid") # Rust / Amber
     fill_zebra = PatternFill(start_color="F9FAFB", end_color="F9FAFB", fill_type="solid")
@@ -798,17 +848,23 @@ def generate_report_excel_workbook(
     ws2["A1"].font = font_top_header
     ws2["A1"].alignment = align_center
 
-    ws2.merge_cells("J1:P1")
-    ws2["J1"] = "Predicted (Defects)"
-    ws2["J1"].fill = fill_pred_header
+    ws2.merge_cells("J1:L1")
+    ws2["J1"] = "Parameter Health (OOR)"
+    ws2["J1"].fill = fill_oor_header
     ws2["J1"].font = font_top_header
     ws2["J1"].alignment = align_center
 
-    ws2.merge_cells("Q1:X1")
-    ws2["Q1"] = "Recorded (Defects)"
-    ws2["Q1"].fill = fill_rec_header
-    ws2["Q1"].font = font_top_header
-    ws2["Q1"].alignment = align_center
+    ws2.merge_cells("M1:S1")
+    ws2["M1"] = "Predicted (Defects)"
+    ws2["M1"].fill = fill_pred_header
+    ws2["M1"].font = font_top_header
+    ws2["M1"].alignment = align_center
+
+    ws2.merge_cells("T1:AA1")
+    ws2["T1"] = "Recorded (Defects)"
+    ws2["T1"].fill = fill_rec_header
+    ws2["T1"].font = font_top_header
+    ws2["T1"].alignment = align_center
 
     # Tier 2 Header
     headers_defect_comparison = [
@@ -821,6 +877,10 @@ def generate_report_excel_workbook(
         "Part Serial",
         "Customer QR",
         "Prescription ID",
+        # Parameter Health (OOR)
+        "Monitor Verdict",
+        "OOR / Compared",
+        "OOR Status (≥4 Rule)",
         # Predicted
         "OK",
         "Blow Hole",
@@ -845,7 +905,9 @@ def generate_report_excel_workbook(
         cell.font = font_sub_header
         if col_idx <= 9:
             cell.fill = fill_id_header
-        elif col_idx <= 16:
+        elif col_idx <= 12:
+            cell.fill = fill_oor_header
+        elif col_idx <= 19:
             cell.fill = fill_pred_header
         else:
             cell.fill = fill_rec_header
@@ -855,6 +917,11 @@ def generate_report_excel_workbook(
     # Data Rows
     current_row = 3
     for b in defect_comparison_rows:
+        oor_status_str = (
+            f"≥4 OOR ({b.params_out_of_range} out of range)"
+            if (b.params_out_of_range or 0) >= 4
+            else f"<4 OOR ({b.params_out_of_range} out of range)"
+        )
         row_vals = [
             b.source,
             b.today_date,
@@ -865,6 +932,10 @@ def generate_report_excel_workbook(
             b.part_serial,
             b.customer_qr,
             b.prescription_id,
+            # Parameter Health
+            b.monitor_verdict or "-",
+            f"{b.params_out_of_range} / {b.params_compared}" if b.params_compared else str(b.params_out_of_range),
+            oor_status_str,
             # Predicted
             b.predicted.ok,
             b.predicted.blow_hole,
@@ -886,7 +957,7 @@ def generate_report_excel_workbook(
 
         for col_idx, val in enumerate(row_vals, 1):
             cell = ws2.cell(row=current_row, column=col_idx, value=val)
-            cell.font = font_data_bold if col_idx in [4, 7, 10, 17] else font_data
+            cell.font = font_data_bold if col_idx in [4, 7, 10, 13, 20] else font_data
             cell.alignment = align_center
             cell.border = thin_border
             if current_row % 2 == 0:
@@ -899,6 +970,15 @@ def generate_report_excel_workbook(
 
     # Column Widths
     for c_idx in range(1, len(headers_defect_comparison) + 1):
+        col_letter = get_column_letter(c_idx)
+        if c_idx in [7, 8]:
+            ws2.column_dimensions[col_letter].width = 20
+        elif c_idx in [5, 6, 9, 12]:
+            ws2.column_dimensions[col_letter].width = 22
+        elif c_idx in [10, 11]:
+            ws2.column_dimensions[col_letter].width = 16
+        else:
+            ws2.column_dimensions[col_letter].width = 12
         col_letter = get_column_letter(c_idx)
         if c_idx in [7, 8]:
             ws2.column_dimensions[col_letter].width = 20
