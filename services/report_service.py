@@ -362,11 +362,25 @@ def fetch_part_defect_comparisons(
             elif period == "ytd":
                 conditions.append("p.manufactored_on >= %s")
                 params.append(_production_day_start(date(anchor.year, 1, 1)))
-            elif period == "custom" and start_date and end_date:
-                start_day = date.fromisoformat(str(start_date)[:10])
-                end_day = date.fromisoformat(str(end_date)[:10]) + timedelta(days=1)
-                conditions.append("p.manufactored_on >= %s AND p.manufactored_on < %s")
-                params.extend([_production_day_start(start_day), _production_day_start(end_day)])
+            elif period == "custom" and (start_date or end_date):
+                if start_date and end_date:
+                    start_d = date.fromisoformat(str(start_date)[:10])
+                    end_d = date.fromisoformat(str(end_date)[:10])
+                    # Strict IST calendar range: 00:00:00 on start date to 23:59:59.999999 on end date
+                    start_dt = datetime(start_d.year, start_d.month, start_d.day, 0, 0, 0, tzinfo=IST)
+                    end_dt = datetime(end_d.year, end_d.month, end_d.day, 23, 59, 59, 999999, tzinfo=IST)
+                    conditions.append("p.manufactored_on >= %s AND p.manufactored_on <= %s")
+                    params.extend([start_dt, end_dt])
+                elif start_date:
+                    start_d = date.fromisoformat(str(start_date)[:10])
+                    start_dt = datetime(start_d.year, start_d.month, start_d.day, 0, 0, 0, tzinfo=IST)
+                    conditions.append("p.manufactored_on >= %s")
+                    params.append(start_dt)
+                elif end_date:
+                    end_d = date.fromisoformat(str(end_date)[:10])
+                    end_dt = datetime(end_d.year, end_d.month, end_d.day, 23, 59, 59, 999999, tzinfo=IST)
+                    conditions.append("p.manufactored_on <= %s")
+                    params.append(end_dt)
 
             where_str = f"WHERE {' AND '.join(conditions)}"
             limit_str = f"LIMIT {int(limit)}" if limit is not None else ""
