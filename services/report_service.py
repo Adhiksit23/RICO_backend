@@ -534,12 +534,11 @@ def fetch_part_defect_comparisons(
                     gates_passed = any_high_prob and (part_oor >= OOR_GATE)
 
                     def format_pred(name: str) -> str:
-                        """Show probability if above threshold, regardless of OOR gate
-                        (informational). Overall DEFECT verdict uses the dual gate."""
+                        """Always show probability; 1/0 reflects the probability threshold,
+                        while the overall DEFECT verdict uses the dual gate."""
                         p_val = preds.get(name.lower(), 0.0)
-                        if p_val > DEFECT_PROB_THRESHOLD:
-                            return f"1 ({int(p_val * 100)}%)"
-                        return "0"
+                        flag = "1" if p_val > DEFECT_PROB_THRESHOLD else "0"
+                        return f"{flag} ({int(p_val * 100)}%)"
 
                     predicted_data = DefectPredictionMap(
                         # Overall verdict requires BOTH: prob > 60% AND params_oor >= 4

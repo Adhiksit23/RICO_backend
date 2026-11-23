@@ -75,6 +75,15 @@ MONITOR_PARAMS = [
 # Monitor verdict: FAIL when out-of-range count is 4 or more.
 MONITOR_FAIL_THRESHOLD = 4
 
+
+def calibrate_probability(p_raw: float, k: float = 0.02041) -> float:
+    numerator = float(p_raw) * k
+    denominator = numerator + (1.0 - float(p_raw))
+    if denominator == 0:
+        return 0.0
+    return numerator / denominator
+
+
 _MODEL_DATE_RE = re.compile(r"_(\d{8})_voting\.pkl$")
 _MODEL_CACHE: dict[str, dict] = {}
 _CALIBRATION_CACHE: dict[int, dict] = {}
@@ -372,7 +381,7 @@ def _predict_day(cur, conn, die: str, day: date, totals: dict) -> None:
                     id_machine,
                     manufactored_on,
                     defect,
-                    float(probabilities[i]),
+                    float(calibrate_probability(probabilities[i])),
                     verdict,
                     out_of_range,
                     compared,
