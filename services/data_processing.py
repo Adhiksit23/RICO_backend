@@ -148,6 +148,7 @@ def find_existing_part_id(cur, id_die, shot_number, production_date):
 def process_data(data):
        
     if(data['shot']['parameters'] == None):
+        print("SKIP: No Parameters Stored")
         return
 
 
