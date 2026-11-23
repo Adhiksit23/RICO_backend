@@ -162,6 +162,7 @@ def process_data(data):
     id_machine = data['shot']['machine'] 
     id_die = data['part']['die']
     if id_die not in DIE_LIST:
+        print("SKIP: Id Die not in list: ", id_die)
         return
 
     
