@@ -11,7 +11,7 @@ except: os.system("pip install xgboost -q"); from xgboost import XGBClassifier
 warnings.filterwarnings("ignore")
 import psycopg2
 import pickle
-from datetime import date, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import requests
 from .data_processing import process_data, store_quality_pred
 import os
@@ -25,7 +25,9 @@ _last_seen_page = 1
 _last_seen_key = None
 
 BASE_URL = f"{IOT_BASE_URL}"
- 
+
+IST_TZ = timezone(timedelta(hours=5, minutes=30))
+
 USERNAME = IOT_USERNAME
 PASSWORD = IOT_PASSWORD
 
@@ -70,8 +72,9 @@ PARAM_MAPPING = {
 }
 
 def update_date_path() -> str:
-    date_from =  date.today().strftime("%Y-%m-%dT06:00:00")
-    date_to =  (date.today() + timedelta(days=1)).strftime("%Y-%m-%dT06:00:00")
+    prod_day = (datetime.now(IST_TZ) - timedelta(hours=6)).date()
+    date_from = prod_day.strftime("%Y-%m-%dT06:00:00")
+    date_to = (prod_day + timedelta(days=1)).strftime("%Y-%m-%dT06:00:00")
     data_path = f"/v1/reports/report/historical?dateFrom={date_from}&dateTo={date_to}&page=1&pageSize={PAGE_SIZE}&partCategory=HPDC&clean=1"
     return data_path
 

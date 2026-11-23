@@ -184,12 +184,6 @@ def parse_api_time(raw: str) -> datetime:
 
 
 def resolve_production_date(row: dict, recorded: datetime) -> date:
-    raw = row.get("production_date") or row.get("shot_date")
-    if raw:
-        try:
-            return date.fromisoformat(str(raw)[:10])
-        except ValueError:
-            pass
     return (recorded - PRODUCTION_DAY_OFFSET).date()
 
 
