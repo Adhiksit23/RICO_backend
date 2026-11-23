@@ -103,7 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_mv_part_param_wide_shot
 CREATE OR REPLACE FUNCTION rico.refresh_part_parameters_wide()
 RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
-    REFRESH MATERIALIZED VIEW CONCURRENTLY rico.mv_part_parameters_wide;
+    REFRESH MATERIALIZED VIEW CONCURRENTLY rico.mv_part_operating_parameters_wide;
 END;
 $$;
 
