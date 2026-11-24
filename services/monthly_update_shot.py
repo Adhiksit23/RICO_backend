@@ -307,20 +307,6 @@ def extract_shot_number(part_id):
 
 
 def derive_production_date(shot, date_ist):
-    """
-    Production date. shot.date is authoritative.
-
-    Fallback: the production day starts at 06:00, and the API timestamp's
-    calendar date is +1 for 00:00-05:59, so subtract six hours.
-    """
-    raw = shot.get("date")
-
-    if raw:
-        try:
-            return date.fromisoformat(str(raw)[:10])
-        except ValueError:
-            pass
-
     return (date_ist - PRODUCTION_DAY_OFFSET).date()
 
 

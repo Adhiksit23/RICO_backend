@@ -106,12 +106,6 @@ def extract_shot_number(part_id):
 
 
 def derive_production_date(shot: dict, date_ist: datetime) -> date:
-    raw = shot.get("date")
-    if raw:
-        try:
-            return date.fromisoformat(str(raw)[:10])
-        except ValueError:
-            pass
     return (date_ist - PRODUCTION_DAY_OFFSET).date()
 
 
@@ -148,6 +142,7 @@ def find_existing_part_id(cur, id_die, shot_number, production_date):
 def process_data(data):
        
     if(data['shot']['parameters'] == None):
+        print("SKIP: No Parameters Stored")
         return
 
 
@@ -161,6 +156,7 @@ def process_data(data):
     id_machine = data['shot']['machine'] 
     id_die = data['part']['die']
     if id_die not in DIE_LIST:
+        print("SKIP: Id Die not in list: ", id_die)
         return
 
     

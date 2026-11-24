@@ -270,13 +270,6 @@ def date_processing(raw_date: str) -> datetime:
 
 
 def derive_production_date(row: dict, date_ist: datetime) -> date:
-    for key in ("production_date", "shot_date"):
-        raw = row.get(key)
-        if raw:
-            try:
-                return date.fromisoformat(str(raw)[:10])
-            except ValueError:
-                pass
     return (date_ist - PRODUCTION_DAY_OFFSET).date()
 
 

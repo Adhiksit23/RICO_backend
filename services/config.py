@@ -48,6 +48,17 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return float(raw.strip())
+    except ValueError:
+        logger.warning("Invalid float for %s=%r — using default %s", name, raw, default)
+        return default
+
+
 # ─── IoT Sync (plant PLC / vendor API) ────────────────────────────────
 # Auth base includes "/api" (no trailing slash). Example:
 #   http://14.195.222.243:9090/api
@@ -85,3 +96,6 @@ PREDICT_MONITOR_ENABLED = _env_bool("PREDICT_MONITOR_ENABLED", True)
 PREDICT_MONITOR_INTERVAL_SECONDS = max(
     30, _env_int("PREDICT_MONITOR_INTERVAL_SECONDS", 60)
 )
+
+PREDICTION_CALIBRATION_ENABLED = _env_bool("PREDICTION_CALIBRATION_ENABLED", True)
+PREDICTION_CALIBRATION_K = _env_float("PREDICTION_CALIBRATION_K", 0.02041)

@@ -33,7 +33,9 @@ import numpy as np
 import psycopg2
 from psycopg2.extras import execute_values
 
-from services.config import DB_CONFIG
+from services.config import (
+    DB_CONFIG, PREDICTION_CALIBRATION_ENABLED, PREDICTION_CALIBRATION_K,
+)
 from services.predictor import PARAM_MAPPING, TARGET_DEFECTS
 
 DIE_LIST = ["S14", "S16", "S17", "S18"]
@@ -76,8 +78,11 @@ MONITOR_PARAMS = [
 MONITOR_FAIL_THRESHOLD = 4
 
 
-def calibrate_probability(p_raw: float, k: float = 0.02041) -> float:
-    numerator = float(p_raw) * k
+def calibrate_probability(p_raw: float, k: float = None) -> float:
+    if not PREDICTION_CALIBRATION_ENABLED:
+        return float(p_raw)
+    factor = PREDICTION_CALIBRATION_K if k is None else k
+    numerator = float(p_raw) * factor
     denominator = numerator + (1.0 - float(p_raw))
     if denominator == 0:
         return 0.0
