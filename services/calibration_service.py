@@ -88,7 +88,7 @@ def get_latest_parameters(machine: str = None, die: str = None):
             "baseline": float(row["baseline"]),
             "min_range": float(row["lower_tolerance"]),
             "max_range": float(row["upper_tolerance"]),
-            "unit": names_UOM[PARAM_MAPPING[row["parameter_name"]]] if die == "S16" else names_UOM[row["parameter_name"]],
+            "unit": names_UOM.get(PARAM_MAPPING.get(row["parameter_name"], row["parameter_name"]), "") if die == "S16" else names_UOM.get(row["parameter_name"], ""),
             } for _, row in df.iterrows()
         }
         # print("Result of latest in calibration page: ", result )

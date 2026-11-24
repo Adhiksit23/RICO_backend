@@ -48,6 +48,7 @@ PAGE_SIZE = "100"
 PARAM_MAPPING = {
     "cycletime_value_sec": "cycle_time",
     "DIE_CLOSE_CORE_IN_step_value_sec": "die_close_core_in_time",
+    "DIE-CLOSE CORE IN TIME": "die_close_core_in_time",
     "POURING_step_value_sec": "pouring_time",
     "SHOT_FWD_step_value_sec": "shot_fwd_time",
     "COOLING_step_value_sec": "curing_time",
