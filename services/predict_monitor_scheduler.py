@@ -120,18 +120,7 @@ def run_predict_monitor_for_die(
     part's operating parameters rather than the latest part for the die.
     """
     lock = _get_die_lock(die)
-    if not lock.acquire(blocking=False):
-        logger.info(
-            "[predict-monitor] Skipped die=%s part=%s (%s) — previous run still active",
-            die, part_id, trigger,
-        )
-        return {
-            "status": "skipped",
-            "reason": "already_running",
-            "die": die,
-            "part_id": part_id,
-            "trigger": trigger,
-        }
+    lock.acquire(blocking=True)
 
     result: dict[str, Any] = {
         "status": "ok",
