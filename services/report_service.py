@@ -75,6 +75,7 @@ class PartDefectComparisonRow(BaseModel):
     params_out_of_range: int = 0       # number of parameters outside calibrated range
     params_compared: int = 0           # number of parameters actually compared
     params_total: int = 0              # total parameters in the shot
+    parameters: Dict[str, Any] = Field(default_factory=dict) # Core 23 process parameters
 
 
 class ReportSummary(BaseModel):
@@ -490,6 +491,69 @@ def fetch_part_defect_comparisons(
                         if total_val and not pqp_oor_map[pid]["params_total"]:
                             pqp_oor_map[pid]["params_total"] = total_val
 
+                # 3. Fetch all 23 actual parameters for parts
+                part_params_map: Dict[str, Dict[str, Any]] = {}
+                try:
+                    cur.execute(
+                        """
+                        SELECT *
+                        FROM rico.vw_part_operating_parameters_wide
+                        WHERE id_part = ANY(%s);
+                        """,
+                        (part_ids,),
+                    )
+                    col_names = [desc[0].lower() for desc in cur.description]
+                    for r in cur.fetchall():
+                        r_dict = dict(zip(col_names, r))
+                        pid = str(r_dict.get("id_part"))
+                        part_params_map[pid] = {}
+                        for p_name, aliases in REPORT_PARAMETERS:
+                            val = None
+                            for alias in aliases:
+                                c_name = alias.lower().replace(" ", "_")
+                                if c_name in r_dict and r_dict[c_name] is not None:
+                                    try:
+                                        val = round(float(r_dict[c_name]), 2)
+                                    except (TypeError, ValueError):
+                                        val = r_dict[c_name]
+                                    break
+                            part_params_map[pid][p_name] = val
+                except Exception:
+                    # Fallback if view is not yet created in the DB: query raw operating_parameter
+                    if conn and hasattr(conn, "rollback"):
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                    try:
+                        cur.execute(
+                            """
+                            SELECT id_part, parameter_name, value
+                            FROM rico.operating_parameter
+                            WHERE id_part = ANY(%s);
+                            """,
+                            (part_ids,),
+                        )
+                        alias_to_display = {}
+                        for p_name, aliases in REPORT_PARAMETERS:
+                            for a in aliases:
+                                alias_to_display[a.lower()] = p_name
+                                alias_to_display[a.lower().replace(" ", "_")] = p_name
+
+                        for pid, pname, val in cur.fetchall():
+                            pid_str = str(pid)
+                            if pid_str not in part_params_map:
+                                part_params_map[pid_str] = {}
+                            clean_pname = (pname or "").lower().strip()
+                            disp = alias_to_display.get(clean_pname) or alias_to_display.get(clean_pname.replace(" ", "_"))
+                            if disp and val is not None:
+                                try:
+                                    part_params_map[pid_str][disp] = round(float(val), 2)
+                                except (TypeError, ValueError):
+                                    part_params_map[pid_str][disp] = val
+                    except Exception as e_fallback:
+                        logger.warning("Could not fetch parameter fallback: %s", e_fallback)
+
                 today_str = datetime.now(IST).strftime("%Y-%m-%d")
 
                 for part_id, die_id, machine_name, mfg_on, cust_qr, calib_used, part_st in parts:
@@ -573,6 +637,7 @@ def fetch_part_defect_comparisons(
                             params_out_of_range=part_oor,
                             params_compared=part_compared,
                             params_total=part_total,
+                            parameters=part_params_map.get(str(part_id), {}),
                         )
                     )
 
@@ -634,6 +699,7 @@ def fetch_part_defect_comparisons(
                     params_out_of_range=oor,
                     params_compared=23,
                     params_total=23,
+                    parameters={p_name: 0.0 for p_name, _ in REPORT_PARAMETERS},
                 )
             )
 
@@ -833,6 +899,7 @@ def generate_report_excel_workbook(
     fill_oor_header = PatternFill(start_color="B25900", end_color="B25900", fill_type="solid") # Amber / Orange Accent
     fill_pred_header = PatternFill(start_color="7030A0", end_color="7030A0", fill_type="solid") # Purple Accent
     fill_rec_header = PatternFill(start_color="C65911", end_color="C65911", fill_type="solid") # Rust / Amber
+    fill_param_header = PatternFill(start_color="117A65", end_color="117A65", fill_type="solid") # Dark Teal (IoT Actual Parameters)
     fill_zebra = PatternFill(start_color="F9FAFB", end_color="F9FAFB", fill_type="solid")
 
     font_top_header = Font(name=font_family, size=11, bold=True, color="FFFFFF")
@@ -933,6 +1000,18 @@ def generate_report_excel_workbook(
     ws2["U1"].font = font_top_header
     ws2["U1"].alignment = align_center
 
+    # Actual 23 Operating Parameters
+    total_param_len = len(REPORT_PARAMETERS)
+    param_start_col = 29
+    param_end_col = param_start_col + total_param_len - 1
+    param_start_letter = get_column_letter(param_start_col)
+    param_end_letter = get_column_letter(param_end_col)
+    ws2.merge_cells(f"{param_start_letter}1:{param_end_letter}1")
+    ws2[f"{param_start_letter}1"] = "Actual Operating Parameters (Recorded in IoT)"
+    ws2[f"{param_start_letter}1"].fill = fill_param_header
+    ws2[f"{param_start_letter}1"].font = font_top_header
+    ws2[f"{param_start_letter}1"].alignment = align_center
+
     # Tier 2 Header
     headers_defect_comparison = [
         "Source",
@@ -966,6 +1045,8 @@ def generate_report_excel_workbook(
         "Chip-off",
         "Crack",
         "Other",
+        # Actual 23 Operating Parameters
+        *[p_name for p_name, _ in REPORT_PARAMETERS],
     ]
 
     for col_idx, h_text in enumerate(headers_defect_comparison, 1):
@@ -977,8 +1058,10 @@ def generate_report_excel_workbook(
             cell.fill = fill_oor_header
         elif col_idx <= 20:
             cell.fill = fill_pred_header
-        else:
+        elif col_idx <= 28:
             cell.fill = fill_rec_header
+        else:
+            cell.fill = fill_param_header
         cell.alignment = align_center
         cell.border = header_border
 
@@ -1022,6 +1105,8 @@ def generate_report_excel_workbook(
             b.recorded.chip_off,
             b.recorded.crack,
             b.recorded.other,
+            # Actual 23 Operating Parameters
+            *[b.parameters.get(p_name, "-") for p_name, _ in REPORT_PARAMETERS],
         ]
 
         for col_idx, val in enumerate(row_vals, 1):
@@ -1068,6 +1153,10 @@ def generate_report_excel_workbook(
         27: 14,  # Crack
         28: 12,  # Other
     }
+    # Add widths for all 23 Operating Parameters (columns 29 to 51)
+    for c_idx in range(29, 29 + len(REPORT_PARAMETERS)):
+        col_widths_s2[c_idx] = 16
+
     for c_idx, w in col_widths_s2.items():
         ws2.column_dimensions[get_column_letter(c_idx)].width = w
 
