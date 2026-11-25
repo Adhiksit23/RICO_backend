@@ -32,6 +32,15 @@ names_UOM = {
     'v3_speed': 'm/sec',
     'v4_speed': 'm/sec',
     'cycle_time': 'sec',
+    'jet_cooling_pressure': '',
+    'vacuum_pressure': '',
+    'cooling_water_mov': '',
+    'cooling_water_sta': '',
+    'fixed_die_temp_f1': '',
+    'fixed_die_temp_f2': '',
+    'moving_die_temp_m1': '',
+    'moving_die_temp_m2': '',
+    'slide_temp_s1': '',
 }
  
 MACHINE_IDS = ["UBE 850T-1", "UBE 850T-2", "UBE 850T-3"]
@@ -60,6 +69,15 @@ PARAM_LIST = [
     "shot_acc_pressure",
     "intensification_acc_pressure",
     "furnace_metal_temp",
+    "jet_cooling_pressure",
+    "vacuum_pressure",
+    "cooling_water_mov",
+    "cooling_water_sta",
+    "fixed_die_temp_f1",
+    "fixed_die_temp_f2",
+    "moving_die_temp_m1",
+    "moving_die_temp_m2",
+    "slide_temp_s1",
 ]
 
 DIE_LIST = ["S14", "S16", "S17", "S18"]
@@ -73,13 +91,15 @@ def store_defect(cur, row, date_ist, id_client, id_machine, part_id=None):
     view = row['rejection']['view']
     part_id = part_id or row['part']['id']
     id_die = row['part']['die']
+    now = datetime.now()
 
     cur.execute("""
-    INSERT INTO part_quality (id_part, id_die, id_client, updated_at, category, zone, sub_zone, view, id_machine, manufactored_on, defect_type)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    INSERT INTO part_quality (id_part, id_die, id_client, created_at, updated_at, enabled, category, zone, sub_zone, view, id_machine, manufactored_on, defect_type)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (id_part) DO UPDATE SET
         id_die = EXCLUDED.id_die,
         id_client = EXCLUDED.id_client,
+        enabled = TRUE,
         category = EXCLUDED.category,
         zone = EXCLUDED.zone,
         sub_zone = EXCLUDED.sub_zone,
@@ -87,7 +107,7 @@ def store_defect(cur, row, date_ist, id_client, id_machine, part_id=None):
         id_machine = EXCLUDED.id_machine,
         defect_type = EXCLUDED.defect_type,
         manufactored_on = EXCLUDED.manufactored_on
-""", (part_id, id_die, id_client, datetime.now(), category, zone, sub_zone, view, id_machine, date_ist, defect))
+""", (part_id, id_die, id_client, now, now, True, category, zone, sub_zone, view, id_machine, date_ist, defect))
 
 def date_processing(date):
     naive = datetime.fromisoformat(date.replace("Z", ""))
@@ -204,18 +224,19 @@ def process_data(data):
 
     #Start entering data
     cur.execute("""
-        INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at, customer_qr, shot_number, production_date, status)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO part (id_part, id_die, id_client, id_machine, manufactored_on, created_at, enabled, customer_qr, shot_number, production_date, status)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (id_part) DO UPDATE SET
             id_die = EXCLUDED.id_die,
             id_client = EXCLUDED.id_client,
             id_machine = EXCLUDED.id_machine,
             manufactored_on = EXCLUDED.manufactored_on,
+            enabled = TRUE,
             customer_qr = COALESCE(NULLIF(EXCLUDED.customer_qr, ''), rico.part.customer_qr),
             shot_number = EXCLUDED.shot_number,
             production_date = EXCLUDED.production_date,
             status = EXCLUDED.status
-    """, (part_id, id_die, id_client, id_machine, date_ist, datetime.now(), customer_qr,
+    """, (part_id, id_die, id_client, id_machine, date_ist, datetime.now(), True, customer_qr,
           shot_number, production_date, part_status))
 
 
@@ -226,15 +247,19 @@ def process_data(data):
         uom = names_UOM[param]
         
         cur.execute("""
-                INSERT INTO operating_parameter (id_part, id_die, id_client, id_machine, parameter_name, "UOM", value, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO operating_parameter (
+                    id_part, id_die, id_client, id_machine, parameter_name,
+                    "UOM", enabled, value, created_at, updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id_part, parameter_name) DO UPDATE SET
                     id_die = EXCLUDED.id_die,
                     id_client = EXCLUDED.id_client,
                     id_machine = EXCLUDED.id_machine,
+                    enabled = TRUE,
                     value = EXCLUDED.value,
                     updated_at = EXCLUDED.updated_at
-        """, (part_id, id_die, id_client, id_machine, param_name, uom, val, date_ist, datetime.now()))
+        """, (part_id, id_die, id_client, id_machine, param_name, uom, True, val, date_ist, datetime.now()))
 
     print("Defect seen is: ", data['rejection']['reason'])
     if(data['rejection']['reason'] != None):
@@ -246,7 +271,7 @@ def process_data(data):
     conn.close()
     return
 
-def store_quality_pred(predictions, part, TARGET_DEFECTS, cur, monitor=None):
+def store_quality_pred(predictions, part, TARGET_DEFECTS, cur, monitor=None, manufactored_on=None):
     id_part = part["id_part"].iloc[0]
     print("Storing predictions for: ", id_part)
     id_die = part["id_die"].iloc[0]
@@ -255,17 +280,25 @@ def store_quality_pred(predictions, part, TARGET_DEFECTS, cur, monitor=None):
     verdict, out_of_range, params_compared, params_total = monitor or (None, None, None, None)
     for i in range(len(TARGET_DEFECTS)): 
         cur.execute("""
-                INSERT INTO part_quality_prediction (id_part, id_die, id_client, id_machine, defect_type, defect_probability, monitor_verdict, params_out_of_range, params_compared, params_total, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO part_quality_prediction (
+                    id_part, id_die, id_client, id_machine, manufactored_on,
+                    defect_type, defect_probability, monitor_verdict,
+                    params_out_of_range, params_compared, params_total,
+                    enabled, created_at, updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id_part, defect_type) DO UPDATE SET
+                    manufactored_on = EXCLUDED.manufactored_on,
                     defect_probability = EXCLUDED.defect_probability,
                     monitor_verdict = EXCLUDED.monitor_verdict,
                     params_out_of_range = EXCLUDED.params_out_of_range,
                     params_compared = EXCLUDED.params_compared,
                     params_total = EXCLUDED.params_total,
+                    enabled = TRUE,
                     updated_at = EXCLUDED.updated_at
-        """, (id_part, id_die, int(id_client), id_machine, TARGET_DEFECTS[i], predictions[i],
-              verdict, out_of_range, params_compared, params_total, datetime.now(), datetime.now()))
+        """, (id_part, id_die, int(id_client), id_machine, manufactored_on,
+              TARGET_DEFECTS[i], predictions[i], verdict, out_of_range,
+              params_compared, params_total, True, datetime.now(), datetime.now()))
     return
 
 def _as_float(value):

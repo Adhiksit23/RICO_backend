@@ -289,6 +289,15 @@ def _predict_day(cur, conn, die: str, day: date, totals: dict) -> None:
     if not parts:
         return
 
+    cur.execute(
+        """
+        UPDATE rico.part
+        SET id_calibration_used = %s
+        WHERE production_date = %s AND id_die = %s
+        """,
+        (calibration_id, day, die),
+    )
+
     model_paths = {
         defect: model_path_asof(die, defect, day) for defect in TARGET_DEFECTS
     }
@@ -393,6 +402,7 @@ def _predict_day(cur, conn, die: str, day: date, totals: dict) -> None:
                     total,
                     now,
                     today,
+                    True,
                 )
             )
 
@@ -403,7 +413,7 @@ def _predict_day(cur, conn, die: str, day: date, totals: dict) -> None:
             id_part, id_die, id_client, id_machine, manufactored_on,
             defect_type, defect_probability, monitor_verdict,
             params_out_of_range, params_compared, params_total,
-            created_at, updated_at
+            created_at, updated_at, enabled
         )
         VALUES %s
         ON CONFLICT (id_part, defect_type) DO UPDATE SET
@@ -416,6 +426,7 @@ def _predict_day(cur, conn, die: str, day: date, totals: dict) -> None:
             params_out_of_range = EXCLUDED.params_out_of_range,
             params_compared = EXCLUDED.params_compared,
             params_total = EXCLUDED.params_total,
+            enabled = TRUE,
             updated_at = EXCLUDED.updated_at
         """,
         output_rows,
@@ -523,6 +534,15 @@ def _refresh_monitor_day(cur, conn, die: str, day: date, totals: dict) -> None:
     part_ids = [row[0] for row in cur.fetchall()]
     if not part_ids:
         return
+
+    cur.executemany(
+        """
+        UPDATE rico.part
+        SET id_calibration_used = %s
+        WHERE id_part = %s
+        """,
+        [(calibration_id, part_id) for part_id in part_ids],
+    )
 
     params = _load_part_params(cur, part_ids)
     updates = []

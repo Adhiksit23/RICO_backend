@@ -284,6 +284,36 @@ def latest_model_path(die, defect):
     return os.path.join("models", f"{tag}_20260605_voting.pkl")
 
 
+def _calibration_id_asof(cur, die, event_time):
+    cur.execute(
+        """
+        SELECT id_calibration
+        FROM die_calibration
+        WHERE id_die = %s
+          AND (%s IS NULL OR COALESCE(calibration_date, created_at) <= %s)
+        ORDER BY COALESCE(calibration_date, created_at) DESC, id_calibration DESC
+        LIMIT 1
+        """,
+        (die, event_time, event_time),
+    )
+    row = cur.fetchone()
+    if row:
+        return row[0]
+
+    cur.execute(
+        """
+        SELECT id_calibration
+        FROM die_calibration
+        WHERE id_die = %s
+        ORDER BY COALESCE(calibration_date, created_at) ASC NULLS LAST, id_calibration ASC
+        LIMIT 1
+        """,
+        (die,),
+    )
+    row = cur.fetchone()
+    return row[0] if row else None
+
+
 def predictions(die, part_id=None):
 
     #Connect to database
@@ -326,10 +356,16 @@ def predictions(die, part_id=None):
 
     id_part = df_raw["id_part"].iloc[0]
     cur.execute(
-        "SELECT MAX(id_calibration) FROM calibration_parameter WHERE id_die = %s",
-        (die,),
+        "SELECT manufactored_on FROM part WHERE id_part = %s",
+        (id_part,),
     )
-    calibration_id = cur.fetchone()[0]
+    part_row = cur.fetchone()
+    manufactored_on = part_row[0] if part_row and part_row[0] is not None else datetime.now()
+    calibration_id = _calibration_id_asof(cur, die, manufactored_on)
+    cur.execute(
+        "UPDATE part SET id_calibration_used = %s WHERE id_part = %s",
+        (calibration_id, id_part),
+    )
 
     query = """
         SELECT c.parameter_name, c.baseline, c.upper_tolerance, c.lower_tolerance
@@ -399,7 +435,14 @@ def predictions(die, part_id=None):
     calibration = _load_calibration(cur, calibration_id)
     part_values = _load_part_params(cur, [id_part]).get(id_part, {})
     monitor = _monitor_counts(part_values, calibration)
-    store_quality_pred(predictions, df_raw, TARGET_DEFECTS, cur, monitor=monitor)
+    store_quality_pred(
+        predictions,
+        df_raw,
+        TARGET_DEFECTS,
+        cur,
+        monitor=monitor,
+        manufactored_on=manufactored_on,
+    )
     
     conn.commit()
     cur.close()
