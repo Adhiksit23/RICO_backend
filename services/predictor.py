@@ -37,6 +37,18 @@ TOKEN_JSON_PATH = "token"
 #The target outputs
 TARGET_DEFECTS = ["Blow_Hole","Crack","Non_filling","Porosity","Shrinkage","Chipoff"]
 
+STORED_ONLY_PARAMS = {
+    "jet_cooling_pressure",
+    "vacuum_pressure",
+    "cooling_water_mov",
+    "cooling_water_sta",
+    "fixed_die_temp_f1",
+    "fixed_die_temp_f2",
+    "moving_die_temp_m1",
+    "moving_die_temp_m2",
+    "slide_temp_s1",
+}
+
 # Database configuration from centralized services.config (env)
 SHIFT_CODE = "ALL"
 LINE_NAME = "OIL PAN K-12"
@@ -249,14 +261,21 @@ def monitor_data(die):
     # print(last_params)
 
     latest_ranges = get_latest_calibration(die=die)
-    set_ranges = {
-        param: {
-            "recomended_baseline": vals.get("baseline"),
-            "recomended_lower_tolerance": vals.get("lower_tolerance"),
-            "recomended_upper_tolerance": vals.get("upper_tolerance"),
+
+    def _field(row, column):
+        value = row.get(column)
+        return None if value is None or pd.isna(value) else value
+
+    set_ranges = {}
+    for _, row in df_raw.iterrows():
+        param = row["parameter_name"]
+        if param is None or pd.isna(param) or param in STORED_ONLY_PARAMS:
+            continue
+        set_ranges[param] = {
+            "recomended_baseline": _field(row, "recomended_baseline"),
+            "recomended_lower_tolerance": _field(row, "recomended_lower_tolerance"),
+            "recomended_upper_tolerance": _field(row, "recomended_upper_tolerance"),
         }
-        for param, vals in latest_ranges.items()
-    }
 
     last_params["part_id"] = part_id
     timestamp = df_raw["created_at"].iloc[0]      
