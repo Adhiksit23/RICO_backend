@@ -39,9 +39,6 @@ FROM (
 WHERE d.id_die = latest.id_die
   AND latest.rn = 1;
 
-UPDATE rico.part
-SET enabled = TRUE;
-
 UPDATE rico.part_quality AS q
 SET created_at = COALESCE(q.created_at, q.updated_at),
     enabled = TRUE;
@@ -54,7 +51,8 @@ SET enabled = TRUE,
     );
 
 UPDATE rico.part AS p
-SET id_calibration_used = latest.id_calibration
+SET enabled = TRUE,
+    id_calibration_used = COALESCE(latest.id_calibration, p.id_calibration_used)
 FROM (
     SELECT
         part.id_part,
@@ -64,7 +62,7 @@ FROM (
             ORDER BY COALESCE(dc.calibration_date, dc.created_at) DESC, dc.id_calibration DESC
         ) AS rn
     FROM rico.part AS part
-    JOIN rico.die_calibration AS dc
+    LEFT JOIN rico.die_calibration AS dc
       ON dc.id_die = part.id_die
      AND (
         part.manufactored_on IS NULL
