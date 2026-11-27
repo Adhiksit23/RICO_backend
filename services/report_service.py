@@ -114,6 +114,13 @@ class PredictionAccuracyReport(BaseModel):
     total_gains: int
     total_losses: int
     overall_accuracy_pct: float
+    ok_accuracy_pct: float = 100.0
+    ng_accuracy_pct: float = 0.0
+    total_parts_evaluated: int = 0
+    true_ok_count: int = 0
+    true_ng_count: int = 0
+    actual_ok_count: int = 0
+    actual_ng_count: int = 0
     breakdown: List[DefectAccuracyItem] = Field(default_factory=list)
     audit_rows: List[AccuracyPartAuditRow] = Field(default_factory=list)
 
@@ -770,9 +777,28 @@ def compute_prediction_accuracy(
     }
     audit_rows: List[AccuracyPartAuditRow] = []
 
+    # Confusion matrix counters across all parts
+    total_parts_evaluated = len(part_defect_records)
+    actual_ok_count = 0
+    actual_ng_count = 0
+    true_ok_count = 0
+    true_ng_count = 0
+
     for r in part_defect_records:
-        # Only consider this part if the dual gate was passed (overall == DEFECT)
-        if str(r.predicted.ok).strip().upper() != "DEFECT":
+        rec_ok = str(r.recorded.ok).strip().upper() == "OK"
+        pred_ok = str(r.predicted.ok).strip().upper() == "OK"
+
+        if rec_ok:
+            actual_ok_count += 1
+            if pred_ok:
+                true_ok_count += 1
+        else:
+            actual_ng_count += 1
+            if not pred_ok:
+                true_ng_count += 1
+
+        # Only consider this part for defect-specific gains/losses if the dual gate was passed (overall == DEFECT)
+        if pred_ok:
             continue
 
         for field, label in defect_fields:
@@ -834,13 +860,27 @@ def compute_prediction_accuracy(
         total_gains += g_cnt
         total_losses += l_cnt
 
-    overall_acc = round((total_gains / total_predicted) * 100, 1) if total_predicted > 0 else 0.0
+    overall_acc = (
+        round(((true_ok_count + true_ng_count) / total_parts_evaluated) * 100, 1)
+        if total_parts_evaluated > 0
+        else (round((total_gains / total_predicted) * 100, 1) if total_predicted > 0 else 0.0)
+    )
+
+    ok_accuracy_pct = round((true_ok_count / actual_ok_count) * 100, 1) if actual_ok_count > 0 else 100.0
+    ng_accuracy_pct = round((true_ng_count / actual_ng_count) * 100, 1) if actual_ng_count > 0 else 0.0
 
     return PredictionAccuracyReport(
         sample_size=total_predicted,
         total_gains=total_gains,
         total_losses=total_losses,
         overall_accuracy_pct=overall_acc,
+        ok_accuracy_pct=ok_accuracy_pct,
+        ng_accuracy_pct=ng_accuracy_pct,
+        total_parts_evaluated=total_parts_evaluated,
+        true_ok_count=true_ok_count,
+        true_ng_count=true_ng_count,
+        actual_ok_count=actual_ok_count,
+        actual_ng_count=actual_ng_count,
         breakdown=breakdown,
         audit_rows=audit_rows,
     )
@@ -1130,10 +1170,11 @@ def generate_report_excel_workbook(
     limit: Optional[int] = None,
 ) -> io.BytesIO:
     """
-    Generate the Excel workbook with EXACTLY the 3 requested sheets:
+    Generate the Excel workbook with EXACTLY the 4 requested sheets:
       1. Prescription history
       2. Predicted vs Actual
       3. Prediction Accuracy
+      4. Hourly Mismatches
     Styled professionally matching RICO specifications.
     """
     prescribed_rows = fetch_prescribed_parameters(
@@ -1470,9 +1511,9 @@ def generate_report_excel_workbook(
     # KPI Summary Cards Block (Rows 4-5) - spans all 12 columns (3 cols each)
     kpis = [
         ("Overall Prediction Accuracy", f"{accuracy_report.overall_accuracy_pct}%", "A4:C4", "A5:C5"),
-        ("Total Sample (Predicted Defects)", str(accuracy_report.sample_size), "D4:F4", "D5:F5"),
-        ("Confirmed Defects (Gains)", str(accuracy_report.total_gains), "G4:I4", "G5:I5"),
-        ("False Alarms (Losses)", str(accuracy_report.total_losses), "J4:L4", "J5:L5"),
+        ("OK vs Prediction Accuracy", f"{accuracy_report.ok_accuracy_pct}%", "D4:F4", "D5:F5"),
+        ("NG vs Prediction Accuracy", f"{accuracy_report.ng_accuracy_pct}%", "G4:I4", "G5:I5"),
+        ("Defect Gains / Sample", f"{accuracy_report.total_gains} of {accuracy_report.sample_size}", "J4:L4", "J5:L5"),
     ]
     for label, val, lbl_range, val_range in kpis:
         ws3.merge_cells(lbl_range)
