@@ -118,10 +118,24 @@ class PredictionAccuracyReport(BaseModel):
     audit_rows: List[AccuracyPartAuditRow] = Field(default_factory=list)
 
 
+class HourlyMismatchRow(BaseModel):
+    date: str
+    hour_window: str
+    machine_id: str
+    die_id: str
+    total_shots: int
+    mismatched_shots: int
+    mismatch_rate_pct: float
+    recorded_defects: int
+    predicted_defects: int
+    top_deviations: str = ""
+
+
 class ReportPreviewResponse(BaseModel):
     prescribed_parameters: List[PrescribedParameterRow]
     part_defect_records: List[PartDefectComparisonRow]
     prediction_accuracy: PredictionAccuracyReport
+    hourly_mismatches: List[HourlyMismatchRow] = Field(default_factory=list)
     summary: ReportSummary
 
 
@@ -812,6 +826,234 @@ def compute_prediction_accuracy(
     )
 
 
+def compute_hourly_mismatches(
+    part_records: List[PartDefectComparisonRow],
+) -> List[HourlyMismatchRow]:
+    """
+    Aggregate parameter deviations into hourly time-stamped buckets (IST).
+    """
+    buckets: Dict[Tuple[str, str, str, str], Dict[str, Any]] = {}
+
+    for r in part_records:
+        hour_str = r.manufactured_time[:2] if len(r.manufactured_time) >= 2 else "00"
+        try:
+            h_int = int(hour_str)
+            hour_window = f"{h_int:02d}:00 - {(h_int + 1) % 24:02d}:00"
+        except ValueError:
+            hour_window = f"{hour_str}:00"
+
+        key = (r.manufactured_date, hour_window, r.machine_id, r.die_id)
+        if key not in buckets:
+            buckets[key] = {
+                "total_shots": 0,
+                "mismatched_shots": 0,
+                "recorded_defects": 0,
+                "predicted_defects": 0,
+            }
+
+        b = buckets[key]
+        b["total_shots"] += 1
+        if (r.params_out_of_range or 0) >= 1:
+            b["mismatched_shots"] += 1
+        if str(r.recorded.ok).strip().upper() == "DEFECT":
+            b["recorded_defects"] += 1
+        if str(r.predicted.ok).strip().upper() == "DEFECT":
+            b["predicted_defects"] += 1
+
+    results: List[HourlyMismatchRow] = []
+    for (mfg_date, h_win, m_id, d_id), stats in sorted(
+        buckets.items(), key=lambda x: (x[0][0], x[0][1]), reverse=True
+    ):
+        tot = stats["total_shots"]
+        mismatch = stats["mismatched_shots"]
+        rate = round((mismatch / tot) * 100, 1) if tot > 0 else 0.0
+
+        top_dev_str = (
+            f"{mismatch} shots with ≥1 parameter deviation" if mismatch > 0 else "All parameters within range"
+        )
+
+        results.append(
+            HourlyMismatchRow(
+                date=mfg_date,
+                hour_window=h_win,
+                machine_id=m_id,
+                die_id=d_id,
+                total_shots=tot,
+                mismatched_shots=mismatch,
+                mismatch_rate_pct=rate,
+                recorded_defects=stats["recorded_defects"],
+                predicted_defects=stats["predicted_defects"],
+                top_deviations=top_dev_str,
+            )
+        )
+    return results
+
+
+def lookup_part_dossier(query_str: str) -> Dict[str, Any]:
+    """
+    Direct global lookup of a part by Part ID or Customer QR across the entire database.
+    Returns complete prediction results, plant inspection rejections, and all 23 parameters.
+    """
+    clean_q = (query_str or "").strip()
+    if not clean_q:
+        return {"found": False, "message": "Search query cannot be empty"}
+
+    conn = _get_db_conn()
+    if not conn:
+        return {"found": False, "message": "Database offline or unavailable"}
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 
+                    p.id_part,
+                    p.id_die,
+                    COALESCE(m.name, p.id_machine::text, 'UBE 850T-2') as machine_name,
+                    p.manufactored_on,
+                    p.customer_qr,
+                    p.id_calibration_used,
+                    p.status,
+                    p.shot_number,
+                    p.production_date
+                FROM rico.part p
+                LEFT JOIN rico.machine m ON p.id_machine::text = m.id_machine::text
+                WHERE p.id_part = %s OR p.customer_qr = %s OR p.id_part ILIKE %s
+                ORDER BY p.manufactored_on DESC
+                LIMIT 1;
+                """,
+                (clean_q, clean_q, f"%{clean_q}%"),
+            )
+            part_row = cur.fetchone()
+            if not part_row:
+                return {
+                    "found": False,
+                    "query": clean_q,
+                    "message": f"Part '{clean_q}' not found in database.",
+                }
+
+            pid, die_id, m_name, mfg_on, cust_qr, calib_id, p_status, shot_no, prod_date = part_row
+            mfg_on_ist = _to_ist(mfg_on)
+            mfg_date = mfg_on_ist.strftime("%Y-%m-%d") if hasattr(mfg_on_ist, "strftime") else str(mfg_on)[:10]
+            mfg_time = mfg_on_ist.strftime("%H:%M:%S") if hasattr(mfg_on_ist, "strftime") else "00:00:00"
+
+            # 1. Actual recorded defects from rico.part_quality
+            cur.execute(
+                "SELECT defect_type FROM rico.part_quality WHERE id_part = %s;",
+                (pid,),
+            )
+            actual_defects = [str(r[0]) for r in cur.fetchall() if r[0]]
+            has_actual_defect = len(actual_defects) > 0
+
+            # 2. Predicted defects from rico.part_quality_prediction
+            cur.execute(
+                """
+                SELECT defect_type, defect_probability, monitor_verdict, params_out_of_range, params_compared
+                FROM rico.part_quality_prediction
+                WHERE id_part = %s;
+                """,
+                (pid,),
+            )
+            pqp_rows = cur.fetchall()
+            pred_map = {}
+            part_mv = "PASS"
+            part_oor = 0
+            part_comp = 23
+            for dtype, prob, mv, oor, comp in pqp_rows:
+                if dtype:
+                    pred_map[str(dtype).lower()] = float(prob) if prob is not None else 0.0
+                if mv:
+                    part_mv = str(mv).upper()
+                if oor is not None:
+                    part_oor = int(oor)
+                if comp is not None:
+                    part_comp = int(comp)
+
+            DEFECT_PROB_THRESHOLD = 0.60
+            any_high_prob = any(p > DEFECT_PROB_THRESHOLD for p in pred_map.values())
+            is_pred_defect = any_high_prob and (part_oor >= 4)
+
+            # 3. All 23 Operating Parameters
+            params_dict = {}
+            try:
+                cur.execute(
+                    "SELECT * FROM rico.vw_part_operating_parameters_wide WHERE id_part = %s LIMIT 1;",
+                    (pid,),
+                )
+                if cur.description:
+                    c_names = [d[0].lower() for d in cur.description]
+                    wide_row = cur.fetchone()
+                    if wide_row:
+                        r_dict = dict(zip(c_names, wide_row))
+                        for p_name, aliases in REPORT_PARAMETERS:
+                            for a in aliases:
+                                key_a = a.lower().replace(" ", "_")
+                                if key_a in r_dict and r_dict[key_a] is not None:
+                                    try:
+                                        params_dict[p_name] = round(float(r_dict[key_a]), 2)
+                                    except Exception:
+                                        params_dict[p_name] = r_dict[key_a]
+                                    break
+            except Exception:
+                if hasattr(conn, "rollback"):
+                    conn.rollback()
+
+            if not params_dict:
+                cur.execute(
+                    "SELECT parameter_name, value FROM rico.operating_parameter WHERE id_part = %s;",
+                    (pid,),
+                )
+                alias_map = {}
+                for p_name, aliases in REPORT_PARAMETERS:
+                    for a in aliases:
+                        alias_map[a.lower()] = p_name
+                        alias_map[a.lower().replace(" ", "_")] = p_name
+                for pname, val in cur.fetchall():
+                    cp = (pname or "").lower().strip()
+                    disp = alias_map.get(cp) or alias_map.get(cp.replace(" ", "_"))
+                    if disp and val is not None:
+                        try:
+                            params_dict[disp] = round(float(val), 2)
+                        except Exception:
+                            params_dict[disp] = val
+
+            return {
+                "found": True,
+                "part_info": {
+                    "id_part": str(pid),
+                    "customer_qr": str(cust_qr or "-"),
+                    "die_id": str(die_id),
+                    "machine_id": str(m_name),
+                    "manufactured_date": mfg_date,
+                    "manufactured_time": mfg_time,
+                    "prescription_id": str(calib_id or "-"),
+                    "status": str(p_status or "Normal"),
+                    "shot_number": shot_no,
+                },
+                "prediction": {
+                    "verdict": "DEFECT" if is_pred_defect else "OK",
+                    "monitor_verdict": part_mv,
+                    "params_out_of_range": part_oor,
+                    "params_compared": part_comp,
+                    "defects": {
+                        "blow_hole": f"{int(pred_map.get('blow_hole', 0.0) * 100)}%",
+                        "non_filling": f"{int(pred_map.get('non_filling', 0.0) * 100)}%",
+                        "porosity": f"{int(pred_map.get('porosity', 0.0) * 100)}%",
+                        "shrinkage": f"{int(pred_map.get('shrinkage', 0.0) * 100)}%",
+                        "chip_off": f"{int(pred_map.get('chipoff', pred_map.get('chip_off', 0.0)) * 100)}%",
+                        "crack": f"{int(pred_map.get('crack', 0.0) * 100)}%",
+                    },
+                },
+                "plant_inspection": {
+                    "verdict": "DEFECT" if has_actual_defect else "OK",
+                    "defects": actual_defects if actual_defects else ["OK (Passed)"],
+                },
+                "parameters": params_dict,
+            }
+    finally:
+        conn.close()
+
+
 def get_report_preview_data(
     client: Optional[str] = "All",
     machine: Optional[str] = "All",
@@ -835,11 +1077,13 @@ def get_report_preview_data(
         limit=limit,
     )
     accuracy = compute_prediction_accuracy(defect_records)
+    hourly = compute_hourly_mismatches(defect_records)
 
     return ReportPreviewResponse(
         prescribed_parameters=prescribed,
         part_defect_records=defect_records,
         prediction_accuracy=accuracy,
+        hourly_mismatches=hourly,
         summary=ReportSummary(
             total_prescriptions=len(prescribed),
             total_parts=len(defect_records),
@@ -1353,6 +1597,79 @@ def generate_report_excel_workbook(
     }
     for c_idx, w in col_widths_s3.items():
         ws3.column_dimensions[get_column_letter(c_idx)].width = w
+
+    # =========================================================================
+    # SHEET 4: Hourly Parameter Mismatches (Time-Stamped)
+    # =========================================================================
+    ws4 = wb.create_sheet(title="Hourly Mismatches")
+    ws4.views.sheetView[0].showGridLines = True
+
+    hourly_rows = compute_hourly_mismatches(defect_comparison_rows)
+
+    # Banner Title
+    ws4.merge_cells("A1:I1")
+    ws4["A1"] = "HOURLY MISMATCHED PARAMETERS REPORT (TIME-STAMPED)"
+    ws4["A1"].fill = fill_oor_header
+    ws4["A1"].font = font_top_header
+    ws4["A1"].alignment = align_center
+
+    headers_s4 = [
+        "Manufactured Date",
+        "Hour Window (IST)",
+        "Machine ID",
+        "Die ID",
+        "Total Shots",
+        "Shots with Mismatches (≥1 OOR)",
+        "Mismatch Rate %",
+        "Recorded Rejections",
+        "AI Predicted Defects",
+    ]
+    for col_idx, h_text in enumerate(headers_s4, 1):
+        cell = ws4.cell(row=2, column=col_idx, value=h_text)
+        cell.font = font_sub_header
+        cell.fill = fill_oor_header
+        cell.alignment = align_center
+        cell.border = header_border
+
+    r_idx4 = 3
+    for hr in hourly_rows:
+        row_vals_4 = [
+            hr.date,
+            hr.hour_window,
+            hr.machine_id,
+            hr.die_id,
+            hr.total_shots,
+            hr.mismatched_shots,
+            f"{hr.mismatch_rate_pct}%",
+            hr.recorded_defects,
+            hr.predicted_defects,
+        ]
+        for c_idx, val in enumerate(row_vals_4, 1):
+            cell = ws4.cell(row=r_idx4, column=c_idx, value=val)
+            cell.font = font_data_bold if c_idx in [5, 6, 7] else font_data
+            cell.alignment = align_center
+            cell.border = thin_border
+            if r_idx4 % 2 == 0:
+                cell.fill = fill_zebra
+        r_idx4 += 1
+
+    # Footnote
+    fn_cell4 = ws4.cell(row=r_idx4 + 1, column=1, value="Responsible: Neuriot labs")
+    fn_cell4.font = Font(name=font_family, size=9, italic=True, bold=True, color="555555")
+
+    col_widths_s4 = {
+        1: 18,  # Manufactured Date
+        2: 20,  # Hour Window (IST)
+        3: 16,  # Machine ID
+        4: 12,  # Die ID
+        5: 14,  # Total Shots
+        6: 28,  # Shots with Mismatches (≥1 OOR)
+        7: 18,  # Mismatch Rate %
+        8: 20,  # Recorded Rejections
+        9: 20,  # AI Predicted Defects
+    }
+    for c_idx, w in col_widths_s4.items():
+        ws4.column_dimensions[get_column_letter(c_idx)].width = w
 
     # Output to in-memory bytes stream
     excel_stream = io.BytesIO()

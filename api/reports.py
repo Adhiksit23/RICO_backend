@@ -143,3 +143,63 @@ def export_report_excel(
             detail=f"Failed to export Excel report: {str(exc)}",
         ) from exc
 
+
+@router.get("/part-lookup")
+def get_part_dossier(
+    query: str = Query(..., min_length=1, description="Part serial or customer QR to search across entire DB"),
+):
+    """
+    Search for a specific part across the entire database by Part Serial or QR.
+    Returns complete prediction results, plant inspection rejections, and all 23 parameters.
+    """
+    try:
+        from services.report_service import lookup_part_dossier
+        res = lookup_part_dossier(query)
+        if not res.get("found"):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=res.get("message", "Part not found"),
+            )
+        return res
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("[/api/reports/part-lookup] Lookup failed for query=%s: %s", query, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Part lookup failed: {str(exc)}",
+        ) from exc
+
+
+@router.get("/mismatched-parameters/hourly")
+def get_hourly_mismatched_report(
+    client: str = Query("All", description="Target client name or 'All'"),
+    machine: str = Query("All", description="Target machine name/id or 'All'"),
+    die: str = Query("All", description="Target die name or 'All'"),
+    period: str = Query("all", description="Period filter: all, today, last_7_days, last_month, ytd, custom"),
+    start_date: Optional[str] = Query(None, description="Custom period start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="Custom period end date (YYYY-MM-DD)"),
+    limit: Optional[int] = Query(None, ge=1, description="Max parts to evaluate"),
+):
+    """
+    Get time-stamped hourly aggregated report of mismatched/out-of-range parameters.
+    """
+    c = _clean_str(client, "All")
+    m = _clean_str(machine, "All")
+    d = _clean_str(die, "All")
+    p = _clean_str(period, "all")
+    s = _clean_opt(start_date)
+    e = _clean_opt(end_date)
+    try:
+        from services.report_service import fetch_part_defect_comparisons, compute_hourly_mismatches
+        records = fetch_part_defect_comparisons(
+            die=d, machine=m, client=c, period=p, start_date=s, end_date=e, limit=limit
+        )
+        return compute_hourly_mismatches(records)
+    except Exception as exc:
+        logger.exception("[/api/reports/mismatched-parameters/hourly] Failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate hourly mismatch report: {str(exc)}",
+        ) from exc
+
