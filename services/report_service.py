@@ -203,6 +203,42 @@ def _production_day_start(day: date) -> datetime:
     return datetime(day.year, day.month, day.day, PRODUCTION_DAY_START_HOUR, tzinfo=IST)
 
 
+def _production_day_bounds(
+    period: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> tuple[Optional[datetime], Optional[datetime]]:
+    normalized_period = (period or "all").lower()
+    anchor = _production_day(datetime.now(IST))
+
+    if normalized_period == "all":
+        return None, _production_day_start(anchor + timedelta(days=1))
+    if normalized_period == "today":
+        return (
+            _production_day_start(anchor),
+            _production_day_start(anchor + timedelta(days=1)),
+        )
+    if normalized_period == "last_7_days":
+        return (
+            _production_day_start(anchor - timedelta(days=7)),
+            _production_day_start(anchor + timedelta(days=1)),
+        )
+    if normalized_period == "last_month":
+        return (
+            _production_day_start(anchor - timedelta(days=30)),
+            _production_day_start(anchor + timedelta(days=1)),
+        )
+    if normalized_period == "ytd":
+        return (
+            _production_day_start(date(anchor.year, 1, 1)),
+            _production_day_start(anchor + timedelta(days=1)),
+        )
+    if normalized_period == "custom":
+        start = _production_day_start(date.fromisoformat(str(start_date)[:10])) if start_date else None
+        end = _production_day_start(date.fromisoformat(str(end_date)[:10]) + timedelta(days=1)) if end_date else None
+        return start, end
+    return None, None
+
 
 def _get_db_conn():
     try:
@@ -215,6 +251,9 @@ def _get_db_conn():
 def fetch_prescribed_parameters(
     die: Optional[str] = None,
     machine: Optional[str] = None,
+    period: str = "all",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     limit: Optional[int] = None,
 ) -> List[PrescribedParameterRow]:
     """
@@ -223,6 +262,8 @@ def fetch_prescribed_parameters(
     """
     conn = _get_db_conn()
     records: List[PrescribedParameterRow] = []
+    start_bound, end_bound = _production_day_bounds(period, start_date, end_date)
+    date_filter_active = (period or "all").lower() != "all"
 
     if conn:
         try:
@@ -236,6 +277,12 @@ def fetch_prescribed_parameters(
             if machine and machine != "All":
                 conditions.append("dc.id_machine = %s")
                 params.append(machine)
+            if start_bound is not None:
+                conditions.append("dc.created_at >= %s")
+                params.append(start_bound)
+            if end_bound is not None:
+                conditions.append("dc.created_at < %s")
+                params.append(end_bound)
 
             where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
             limit_clause = f"LIMIT {int(limit) * 30}" if limit is not None else ""
@@ -314,7 +361,7 @@ def fetch_prescribed_parameters(
                 conn.close()
 
     # Fallback default calibration sample if database has no rows yet
-    if not records:
+    if not records and not date_filter_active:
         target_dies = [die] if die and die != "All" else ["S18", "S17"]
         for d in target_dies:
             p_dict: Dict[str, ParameterMinMeanMax] = {}
@@ -353,6 +400,7 @@ def fetch_part_defect_comparisons(
             cur = conn.cursor()
             conditions = ["p.id_part IS NOT NULL"]
             params: List[Any] = []
+            start_bound, end_bound = _production_day_bounds(period, start_date, end_date)
 
             if die and die != "All":
                 conditions.append("p.id_die = %s")
@@ -364,40 +412,12 @@ def fetch_part_defect_comparisons(
                 conditions.append("c.name = %s")
                 params.append(client)
 
-            # Date Period filtering (production day = 06:00 -> 06:00 IST)
-            now_ist = datetime.now(IST)
-            anchor = _production_day(now_ist)
-            if period == "today":
+            if start_bound is not None:
                 conditions.append("p.manufactored_on >= %s")
-                params.append(_production_day_start(anchor))
-            elif period == "last_7_days":
-                conditions.append("p.manufactored_on >= %s")
-                params.append(_production_day_start(anchor - timedelta(days=7)))
-            elif period == "last_month":
-                conditions.append("p.manufactored_on >= %s")
-                params.append(_production_day_start(anchor - timedelta(days=30)))
-            elif period == "ytd":
-                conditions.append("p.manufactored_on >= %s")
-                params.append(_production_day_start(date(anchor.year, 1, 1)))
-            elif period == "custom" and (start_date or end_date):
-                if start_date and end_date:
-                    start_d = date.fromisoformat(str(start_date)[:10])
-                    end_d = date.fromisoformat(str(end_date)[:10])
-                    # Strict IST calendar range: 00:00:00 on start date to 23:59:59.999999 on end date
-                    start_dt = datetime(start_d.year, start_d.month, start_d.day, 0, 0, 0, tzinfo=IST)
-                    end_dt = datetime(end_d.year, end_d.month, end_d.day, 23, 59, 59, 999999, tzinfo=IST)
-                    conditions.append("p.manufactored_on >= %s AND p.manufactored_on <= %s")
-                    params.extend([start_dt, end_dt])
-                elif start_date:
-                    start_d = date.fromisoformat(str(start_date)[:10])
-                    start_dt = datetime(start_d.year, start_d.month, start_d.day, 0, 0, 0, tzinfo=IST)
-                    conditions.append("p.manufactored_on >= %s")
-                    params.append(start_dt)
-                elif end_date:
-                    end_d = date.fromisoformat(str(end_date)[:10])
-                    end_dt = datetime(end_d.year, end_d.month, end_d.day, 23, 59, 59, 999999, tzinfo=IST)
-                    conditions.append("p.manufactored_on <= %s")
-                    params.append(end_dt)
+                params.append(start_bound)
+            if end_bound is not None:
+                conditions.append("p.manufactored_on < %s")
+                params.append(end_bound)
 
             where_str = f"WHERE {' AND '.join(conditions)}"
             limit_str = f"LIMIT {int(limit)}" if limit is not None else ""
@@ -1066,7 +1086,13 @@ def get_report_preview_data(
     """
     Get compiled JSON preview data for frontend UI viewing.
     """
-    prescribed = fetch_prescribed_parameters(die=die, machine=machine)
+    prescribed = fetch_prescribed_parameters(
+        die=die,
+        machine=machine,
+        period=period,
+        start_date=start_date,
+        end_date=end_date,
+    )
     defect_records = fetch_part_defect_comparisons(
         die=die,
         machine=machine,
@@ -1110,7 +1136,13 @@ def generate_report_excel_workbook(
       3. Prediction Accuracy
     Styled professionally matching RICO specifications.
     """
-    prescribed_rows = fetch_prescribed_parameters(die=die, machine=machine)
+    prescribed_rows = fetch_prescribed_parameters(
+        die=die,
+        machine=machine,
+        period=period,
+        start_date=start_date,
+        end_date=end_date,
+    )
     defect_comparison_rows = fetch_part_defect_comparisons(
         die=die,
         machine=machine,

@@ -61,6 +61,15 @@ names_UOM = {
     'v3_speed': 'm/sec',
     'v4_speed': 'm/sec',
     'cycle_time': 'sec',
+    'jet_cooling_pressure': '',
+    'vacuum_pressure': '',
+    'cooling_water_mov': '',
+    'cooling_water_sta': '',
+    'fixed_die_temp_f1': '',
+    'fixed_die_temp_f2': '',
+    'moving_die_temp_m1': '',
+    'moving_die_temp_m2': '',
+    'slide_temp_s1': '',
 }
 
 
@@ -88,6 +97,15 @@ PARAM_LIST = [
     "shot_acc_pressure",
     "intensification_acc_pressure",
     "furnace_metal_temp",
+    "jet_cooling_pressure",
+    "vacuum_pressure",
+    "cooling_water_mov",
+    "cooling_water_sta",
+    "fixed_die_temp_f1",
+    "fixed_die_temp_f2",
+    "moving_die_temp_m1",
+    "moving_die_temp_m2",
+    "slide_temp_s1",
 ]
 
 MACHINE_IDS = [
@@ -401,6 +419,7 @@ def store_defect(
 
     part_id = part_id if part_id is not None else row["part"]["id"]
     id_die = row["part"]["die"]
+    now = datetime.now()
 
     cur.execute(
         """
@@ -408,7 +427,9 @@ def store_defect(
             id_part,
             id_die,
             id_client,
+            created_at,
             updated_at,
+            enabled,
             category,
             zone,
             sub_zone,
@@ -420,7 +441,7 @@ def store_defect(
         VALUES (
             %s, %s, %s, %s, %s,
             %s, %s, %s, %s, %s,
-            %s
+            %s, %s, %s
         )
 
         ON CONFLICT (id_part)
@@ -428,6 +449,7 @@ def store_defect(
             id_die = EXCLUDED.id_die,
             id_client = EXCLUDED.id_client,
             updated_at = EXCLUDED.updated_at,
+            enabled = TRUE,
             category = EXCLUDED.category,
             zone = EXCLUDED.zone,
             sub_zone = EXCLUDED.sub_zone,
@@ -440,7 +462,9 @@ def store_defect(
             part_id,
             id_die,
             id_client,
-            datetime.now(),
+            now,
+            now,
+            True,
             category,
             zone,
             sub_zone,
@@ -555,13 +579,15 @@ def process_data(
             id_machine,
             manufactored_on,
             created_at,
+            updated_at,
+            enabled,
             customer_qr,
             shot_number,
             production_date,
             status
         )
         VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
 
         ON CONFLICT (id_part)
@@ -572,6 +598,7 @@ def process_data(
             id_machine = EXCLUDED.id_machine,
             manufactored_on = EXCLUDED.manufactored_on,
             updated_at = EXCLUDED.updated_at,
+            enabled = TRUE,
             customer_qr = COALESCE(NULLIF(EXCLUDED.customer_qr, ''), rico.part.customer_qr),
             shot_number = EXCLUDED.shot_number,
             production_date = EXCLUDED.production_date,
@@ -586,6 +613,8 @@ def process_data(
             id_machine,
             date_ist,
             datetime.now(),
+            datetime.now(),
+            True,
             customer_qr,
             shot_number,
             production_date,
@@ -622,13 +651,14 @@ def process_data(
                 id_machine,
                 parameter_name,
                 "UOM",
+                enabled,
                 value,
                 created_at,
                 updated_at
             )
             VALUES (
                 %s, %s, %s, %s, %s,
-                %s, %s, %s, %s
+                %s, %s, %s, %s, %s
             )
 
             ON CONFLICT (
@@ -639,6 +669,7 @@ def process_data(
                 id_die = EXCLUDED.id_die,
                 id_client = EXCLUDED.id_client,
                 id_machine = EXCLUDED.id_machine,
+                enabled = TRUE,
                 value = EXCLUDED.value,
                 updated_at = EXCLUDED.updated_at
             """,
@@ -649,6 +680,7 @@ def process_data(
                 id_machine,
                 param_name,
                 uom,
+                True,
                 val,
                 date_ist,
                 datetime.now(),
@@ -1218,14 +1250,17 @@ def store_quality_pred(
                 id_die,
                 id_client,
                 id_machine,
+                manufactored_on,
                 defect_type,
                 defect_probability,
+                enabled,
                 created_at,
                 updated_at
             )
             VALUES (
                 %s, %s, %s, %s,
-                %s, %s, %s, %s
+                (SELECT manufactored_on FROM part WHERE id_part = %s),
+                %s, %s, %s, %s, %s
             )
 
             ON CONFLICT (
@@ -1233,8 +1268,11 @@ def store_quality_pred(
                 defect_type
             )
             DO UPDATE SET
+                manufactored_on =
+                    EXCLUDED.manufactored_on,
                 defect_probability =
                     EXCLUDED.defect_probability,
+                enabled = TRUE,
                 updated_at =
                     EXCLUDED.updated_at
             """,
@@ -1243,8 +1281,10 @@ def store_quality_pred(
                 id_die,
                 int(id_client),
                 id_machine,
+                id_part,
                 TARGET_DEFECTS[i],
                 predictions[i],
+                True,
                 datetime.now(),
                 datetime.now(),
             )

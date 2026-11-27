@@ -94,6 +94,15 @@ names_UOM = {
     'v3_speed': 'm/sec',
     'v4_speed': 'm/sec',
     'cycle_time': 'sec',
+    'jet_cooling_pressure': '',
+    'vacuum_pressure': '',
+    'cooling_water_mov': '',
+    'cooling_water_sta': '',
+    'fixed_die_temp_f1': '',
+    'fixed_die_temp_f2': '',
+    'moving_die_temp_m1': '',
+    'moving_die_temp_m2': '',
+    'slide_temp_s1': '',
 }
 
 PARAM_LIST = [
@@ -120,6 +129,15 @@ PARAM_LIST = [
     "shot_acc_pressure",
     "intensification_acc_pressure",
     "furnace_metal_temp",
+    "jet_cooling_pressure",
+    "vacuum_pressure",
+    "cooling_water_mov",
+    "cooling_water_sta",
+    "fixed_die_temp_f1",
+    "fixed_die_temp_f2",
+    "moving_die_temp_m1",
+    "moving_die_temp_m2",
+    "slide_temp_s1",
 ]
 
 def update_date_path_shot() -> str:
@@ -320,14 +338,15 @@ def process_data_shot(data: dict) -> Optional[tuple[str, str]]:
             """
             INSERT INTO part (
                 id_part, id_die, id_client, id_machine,
-                manufactored_on, created_at, shot_number, production_date, status
+                manufactored_on, created_at, enabled, shot_number, production_date, status
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (id_part) DO UPDATE SET
                 id_die = EXCLUDED.id_die,
                 id_client = EXCLUDED.id_client,
                 id_machine = EXCLUDED.id_machine,
                 manufactored_on = EXCLUDED.manufactored_on,
+                enabled = TRUE,
                 shot_number = EXCLUDED.shot_number,
                 production_date = EXCLUDED.production_date,
                 status = EXCLUDED.status
@@ -339,6 +358,7 @@ def process_data_shot(data: dict) -> Optional[tuple[str, str]]:
                 id_machine,
                 date_ist,
                 datetime.now(),
+                True,
                 shot_number,
                 production_date,
                 "in_progress",
@@ -355,14 +375,16 @@ def process_data_shot(data: dict) -> Optional[tuple[str, str]]:
             cur.execute(
                 """
                 INSERT INTO operating_parameter (
-                    id_part, id_die, id_client, id_machine, parameter_name, "UOM", value,
-                    recomended_lower_tolerance, recomended_upper_tolerance, created_at, updated_at
+                    id_part, id_die, id_client, id_machine, parameter_name, "UOM", enabled,
+                    value, recomended_lower_tolerance, recomended_upper_tolerance,
+                    created_at, updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id_part, parameter_name) DO UPDATE SET
                     id_die = EXCLUDED.id_die,
                     id_client = EXCLUDED.id_client,
                     id_machine = EXCLUDED.id_machine,
+                    enabled = TRUE,
                     value = EXCLUDED.value,
                     updated_at = EXCLUDED.updated_at
                 """,
@@ -373,6 +395,7 @@ def process_data_shot(data: dict) -> Optional[tuple[str, str]]:
                     id_machine,
                     param_name,
                     uom,
+                    True,
                     val,
                     param_lower_tolerance,
                     param_upper_tolerance,

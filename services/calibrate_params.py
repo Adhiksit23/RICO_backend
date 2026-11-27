@@ -137,7 +137,7 @@ def main(machine_id, die, start_date=None, end_date=None):
             new_tol = tol
 
         if die == 'S16':
-            uom = names_UOM.get(PARAM_MAPPING[param], "")
+            uom = names_UOM.get(PARAM_MAPPING.get(param, param), "")
         else:
             uom = names_UOM.get(param, "")  
         

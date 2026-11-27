@@ -88,7 +88,7 @@ def get_latest_parameters(machine: str = None, die: str = None):
             "baseline": float(row["baseline"]),
             "min_range": float(row["lower_tolerance"]),
             "max_range": float(row["upper_tolerance"]),
-            "unit": names_UOM[PARAM_MAPPING[row["parameter_name"]]] if die == "S16" else names_UOM[row["parameter_name"]],
+            "unit": names_UOM.get(PARAM_MAPPING.get(row["parameter_name"], row["parameter_name"]), "") if die == "S16" else names_UOM.get(row["parameter_name"], ""),
             } for _, row in df.iterrows()
         }
         # print("Result of latest in calibration page: ", result )
@@ -149,11 +149,19 @@ def apply_calibration(data: dict, id_machine: str, die: str):
         
         # 2. Create the parent calibration record
         cur.execute("""
-            INSERT INTO die_calibration (id_die, id_client, id_machine, enabled)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO die_calibration (
+                id_die, id_client, id_machine, enabled, calibration_date, created_at, updated_at
+            )
+            VALUES (%s, %s, %s, %s, NOW(), NOW(), NOW())
             RETURNING id_calibration
-        """, (id_die, id_client, id_machine, 'true'))
+        """, (id_die, id_client, id_machine, True))
         id_calibration = cur.fetchone()[0]
+
+        cur.execute("""
+            UPDATE die
+            SET id_calibration_implemented = %s, updated_at = NOW()
+            WHERE id_die = %s
+        """, (id_calibration, id_die))
 
         # 3. Fetch the tolerances dynamically based on the current die
         ranges_data = data
@@ -169,10 +177,34 @@ def apply_calibration(data: dict, id_machine: str, die: str):
             upper_tolerance = v['max_range']
 
             cur.execute("""
+                SELECT "UOM"
+                FROM operating_parameter
+                WHERE parameter_name = %s AND "UOM" IS NOT NULL
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (col,))
+            uom_row = cur.fetchone()
+            uom = uom_row[0] if uom_row else names_UOM.get(PARAM_MAPPING.get(col, col), "")
+
+            cur.execute("""
                 INSERT INTO calibration_parameter 
-                (id_calibration, id_die, id_client, id_machine, parameter_name, baseline, lower_tolerance, upper_tolerance)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (id_calibration, id_die, id_client, id_machine, col, baseline, lower_tolerance, upper_tolerance))
+                (
+                    id_calibration, id_die, id_client, id_machine, parameter_name,
+                    baseline, lower_tolerance, upper_tolerance, enabled, "UOM", created_at, updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+            """, (
+                id_calibration,
+                id_die,
+                id_client,
+                id_machine,
+                col,
+                baseline,
+                lower_tolerance,
+                upper_tolerance,
+                True,
+                uom,
+            ))
             
         conn.commit()
 
